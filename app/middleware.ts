@@ -3,13 +3,30 @@ import type { NextRequest } from 'next/server';
 
 function decodeJwt(token: string): any | null {
   try {
-    const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
-    
-    // Check expiration
-    if (decoded.exp && Date.now() > decoded.exp) {
+    // JWT format: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) {
       return null;
     }
-    
+
+    // Decode payload (middle part)
+    let payload = parts[1];
+
+    // Replace URL-safe characters with standard base64 characters
+    payload = payload.replace(/-/g, '+').replace(/_/g, '/');
+
+    // Add padding if needed (base64 strings should be divisible by 4)
+    while (payload.length % 4 !== 0) {
+      payload += '=';
+    }
+
+    const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
+
+    // Check expiration (exp is in seconds, Date.now() is in milliseconds)
+    if (decoded.exp && Date.now() > decoded.exp * 1000) {
+      return null;
+    }
+
     return decoded;
   } catch {
     return null;

@@ -27,10 +27,10 @@ const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setIsLoading(true);
   setError('');
-  
+
   try {
     console.log('Attempting login with:', formData.email);
-    
+
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: {
@@ -44,6 +44,13 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     if (!response.ok) {
       throw new Error(data.error || 'Login gagal');
+    }
+
+    // Save user info to localStorage (for client-side access)
+    if (data.user) {
+      localStorage.setItem('current_user', JSON.stringify(data.user));
+      localStorage.setItem('current_worker_id', data.user.id);
+      console.log('✅ User info saved to localStorage:', data.user);
     }
 
     // Fix: check lowercase role sesuai database

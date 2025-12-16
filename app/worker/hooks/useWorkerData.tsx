@@ -7,40 +7,43 @@ interface WorkerInfo {
   role: string;
 }
 
-interface DashboardData {
-  worker: WorkerInfo;
-  projects: any[];
-  notifications: any[];
-  stats: {
-    total_projects: number;
-    active_projects: number;
-    completed_projects: number;
-    unread_notifications: number;
-  };
-}
-
-// FUNCTION BARU - UNTUK GET WORKER ID DARI SESSION
+// FUNCTION - GET WORKER ID DARI SESSION
 function getCurrentWorkerId(): string | null {
   if (typeof window === 'undefined') return null;
-  
-  // Option 1: Dari localStorage
+
+  console.log('🔍 Getting current worker ID...');
+
+  // Option 1: Dari localStorage (PRIMARY - set by login page)
   const storedId = localStorage.getItem('current_worker_id');
-  if (storedId) return storedId;
-  
-  // Option 2: Dari URL params (untuk testing)
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlWorkerId = urlParams.get('worker_id');
-  if (urlWorkerId) return urlWorkerId;
-  
-  // Option 3: Dari cookies
-  const cookies = document.cookie.split('; ');
-  for (let cookie of cookies) {
-    if (cookie.startsWith('worker_id=')) {
-      return cookie.split('=')[1];
+  if (storedId) {
+    console.log('✅ Found worker ID in localStorage:', storedId);
+    return storedId;
+  }
+
+  // Option 2: Dari user object di localStorage
+  const storedUser = localStorage.getItem('current_user');
+  if (storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+      if (user.id && user.role === 'worker') {
+        console.log('✅ Found worker ID from user object:', user.id);
+        return user.id;
+      }
+    } catch (e) {
+      console.error('Failed to parse stored user:', e);
     }
   }
-  
-  // Fallback untuk testing - nanti hapus ini
+
+  // Option 3: Dari URL params (untuk testing)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlWorkerId = urlParams.get('worker_id');
+  if (urlWorkerId) {
+    console.log('✅ Found worker ID in URL:', urlWorkerId);
+    return urlWorkerId;
+  }
+
+  console.error('❌ No worker ID found anywhere!');
+  console.log('📋 localStorage keys:', Object.keys(localStorage));
   return null;
 }
 
@@ -143,23 +146,30 @@ const handleProjectAction = async (projectId: string, action: string) => {
 };
 // ...existing code...
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
+      // Call logout API to clear httpOnly cookie
+      await fetch('/api/auth/logout', { method: 'POST' });
+
       // Clear session data
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('worker_id');
+        // Clear all user data from localStorage
+        localStorage.removeItem('current_user');
         localStorage.removeItem('current_worker_id');
+        localStorage.removeItem('worker_id');
         localStorage.removeItem('worker_token');
         sessionStorage.clear();
-        
-        // Clear cookies
+
+        // Clear cookies (backup, in case API call fails)
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         document.cookie = 'worker_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       }
-      
+
       // Redirect to login
       window.location.href = '/login';
     } catch (error) {
       console.error('Logout error:', error);
+      // Still redirect even if API call fails
       window.location.href = '/login';
     }
   };
