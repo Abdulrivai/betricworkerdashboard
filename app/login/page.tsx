@@ -49,15 +49,23 @@ const handleSubmit = async (e: React.FormEvent) => {
     // Save user info to localStorage (for client-side access)
     if (data.user) {
       localStorage.setItem('current_user', JSON.stringify(data.user));
-      localStorage.setItem('current_worker_id', data.user.id);
-      console.log('✅ User info saved to localStorage:', data.user);
+
+      // Only save worker_id if user is actually a worker
+      if (data.user.role === 'worker') {
+        localStorage.setItem('current_worker_id', data.user.id);
+        console.log('✅ Worker info saved to localStorage:', data.user);
+      } else if (data.user.role === 'admin') {
+        // Clear any existing worker_id if admin logs in
+        localStorage.removeItem('current_worker_id');
+        console.log('✅ Admin info saved to localStorage:', data.user);
+      }
     }
 
-    // Fix: check lowercase role sesuai database
-    if (data.user.role === 'admin') {  // lowercase
+    // Redirect based on role
+    if (data.user.role === 'admin') {
       console.log('Redirecting to admin...');
       router.push('/admin');
-    } else if (data.user.role === 'worker') {  // lowercase
+    } else if (data.user.role === 'worker') {
       console.log('Redirecting to worker...');
       router.push('/worker');
     } else {

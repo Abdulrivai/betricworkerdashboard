@@ -41,87 +41,110 @@ export default function WorkerDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50">
-      <Header 
+      <Header
         onLogout={handleLogout}
         workerInfo={workerInfo}
       />
 
-      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6">
+        {/* Page Header */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 px-4 py-3 sm:px-6 sm:py-4 mb-4 sm:mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+              <button
+                onClick={() => window.location.href = '/'}
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm sm:text-base transition-colors"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span className="hidden sm:inline">Kembali ke Dashboard</span>
+                <span className="sm:hidden">Kembali</span>
+              </button>
+              <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
+              <h1 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 truncate">
+                Dashboard Worker
+              </h1>
+            </div>
+            <div className="flex-shrink-0">
+              <img src="/betriclogoblue.png" alt="BETRIC" className="h-6 sm:h-8 w-auto" />
+            </div>
+          </div>
+        </div>
+
         {/* Welcome Section */}
-        <div className="mb-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-1">
+        <div className="mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900 mb-1">
             Selamat Datang, {workerInfo?.full_name || 'Worker'}! 👋
           </h2>
-          <p className="text-blue-700/70 text-base sm:text-lg">
+          <p className="text-blue-700/70 text-sm sm:text-base">
             Kelola SPK dan pantau progress project Anda
             {workerInfo?.email && (
-              <span className="font-medium text-blue-800"> ({workerInfo.email})</span>
+              <span className="font-medium text-blue-800 block sm:inline mt-1 sm:mt-0"> ({workerInfo.email})</span>
             )}
           </p>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-blue-200 shadow">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 mb-4 sm:mb-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-blue-200 shadow-sm">
             <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-blue-900">{projects.length}</div>
-              <div className="text-blue-700/70 text-xs sm:text-sm font-medium">Total SPK</div>
+              <div className="text-2xl sm:text-3xl font-bold text-blue-900">{projects.length}</div>
+              <div className="text-blue-700/70 text-xs sm:text-sm font-medium mt-1">Total SPK</div>
             </div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-emerald-200 shadow">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-emerald-200 shadow-sm">
             <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-emerald-700">
+              <div className="text-2xl sm:text-3xl font-bold text-emerald-700">
                 {projects.filter(p => p.status === 'ACTIVE').length}
               </div>
-              <div className="text-emerald-600/70 text-xs sm:text-sm font-medium">Active</div>
+              <div className="text-emerald-600/70 text-xs sm:text-sm font-medium mt-1">Active</div>
             </div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-amber-200 shadow">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-amber-200 shadow-sm">
             <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-amber-700">
+              <div className="text-2xl sm:text-3xl font-bold text-amber-700">
                 {projects.filter(p => p.status === 'WAITING_WORKER_APPROVAL').length}
               </div>
-              <div className="text-amber-600/70 text-xs sm:text-sm font-medium">Pending</div>
+              <div className="text-amber-600/70 text-xs sm:text-sm font-medium mt-1">Pending</div>
             </div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-green-200 shadow">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-green-200 shadow-sm">
             <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-green-700">
+              <div className="text-2xl sm:text-3xl font-bold text-green-700">
                 {projects.filter(p => p.status === 'DONE_ON_TIME' || p.status === 'DONE_LATE').length}
               </div>
-              <div className="text-green-600/70 text-xs sm:text-sm font-medium">Completed</div>
+              <div className="text-green-600/70 text-xs sm:text-sm font-medium mt-1">Completed</div>
             </div>
           </div>
         </div>
 
         {/* Projects Section */}
-        <div className="w-full flex flex-col gap-6">
-          <div className="w-full">
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-blue-200 shadow">
-              <h2 className="text-lg sm:text-xl font-bold text-blue-900 mb-4 sm:mb-6">
-                SPK Diterima ({projects.length})
-              </h2>
-              
-              <div className="space-y-4">
-                {projects.length === 0 ? (
-                  <div className="text-center py-10 sm:py-12">
-                    <div className="bg-blue-100 rounded-full w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                      <span className="text-2xl sm:text-3xl">📋</span>
-                    </div>
-                    <p className="text-blue-700/70 font-medium text-base sm:text-lg">Belum ada SPK</p>
-                    <p className="text-blue-600/50 text-xs sm:text-sm mt-1">SPK akan muncul di sini setelah admin mengirimkannya</p>
+        <div className="w-full">
+          <div className="bg-white/60 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 border border-blue-200 shadow-md">
+            <h2 className="text-base sm:text-lg lg:text-xl font-bold text-blue-900 mb-3 sm:mb-4 lg:mb-6">
+              SPK Diterima ({projects.length})
+            </h2>
+
+            <div className="space-y-3 sm:space-y-4">
+              {projects.length === 0 ? (
+                <div className="text-center py-8 sm:py-10 lg:py-12">
+                  <div className="bg-blue-100 rounded-full w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <span className="text-2xl sm:text-3xl">📋</span>
                   </div>
-                ) : (
-                  projects.map((project) => (
-                    <ProjectCard
-                      key={project.id}
-                      project={project}
-                      onViewDetail={openProjectDetail}
-                      onAction={handleProjectAction}
-                    />
-                  ))
-                )}
-              </div>
+                  <p className="text-blue-700/70 font-medium text-sm sm:text-base lg:text-lg">Belum ada SPK</p>
+                  <p className="text-blue-600/50 text-xs sm:text-sm mt-1 px-4">SPK akan muncul di sini setelah admin mengirimkannya</p>
+                </div>
+              ) : (
+                projects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onViewDetail={openProjectDetail}
+                    onAction={handleProjectAction}
+                  />
+                ))
+              )}
             </div>
           </div>
         </div>

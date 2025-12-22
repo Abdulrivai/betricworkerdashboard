@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface PayrollProject {
   id: string;
@@ -41,7 +43,7 @@ export default function ReportsPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filters
+
   const [dateRange, setDateRange] = useState('10'); // days
   const [paymentStatus, setPaymentStatus] = useState<string>('all');
   const [paymentCycle, setPaymentCycle] = useState<string>('14th');
@@ -341,89 +343,503 @@ export default function ReportsPage() {
 
   const handleExportToExcel = async () => {
     try {
-      // Prepare data for Excel
       const excelData: any[] = [];
+      const currentDate = new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
 
-      // Add header row
+      // Company Header (rows 1-4)
+      excelData.push(['LAPORAN PAYROLL WORKERS - PT BETRIC']);
+      excelData.push([`Periode: ${dateRange} Hari Terakhir`]);
+      excelData.push([`Tanggal Export: ${currentDate}`]);
+      excelData.push([`Siklus Pembayaran: Tanggal 14 Setiap Bulan`]);
+      excelData.push([]); // Empty row
+
+      // Summary Section (rows 6-9)
+      excelData.push(['RINGKASAN PAYROLL']);
+      excelData.push(['Total Workers:', filteredData.length]);
+      excelData.push(['Total Projects:', totalSummary.total_projects, 'Total Nilai:', totalSummary.total_amount]);
+      excelData.push(['Sudah Dibayar:', totalSummary.paid_projects, 'Nilai Dibayar:', totalSummary.paid_amount]);
+      excelData.push(['Belum Dibayar:', totalSummary.pending_projects, 'Nilai Pending:', totalSummary.pending_amount]);
+      excelData.push([]); // Empty row
+
+      // Table Header (row 12)
       excelData.push([
-        'Worker Name',
-        'Worker Email',
-        'Project Title',
-        'Project Value (IDR)',
-        'Completion Date',
-        'Payment Status',
-        'Payment Date'
+        'No',
+        'Nama Worker',
+        'Email Worker',
+        'Judul Project',
+        'Nilai Project (Rp)',
+        'Tanggal Selesai',
+        'Status Pembayaran',
+        'Tanggal Dibayar'
       ]);
 
-      // Add data rows
+      // Data rows
+      let rowNumber = 1;
       filteredData.forEach(worker => {
         worker.projects.forEach(project => {
           excelData.push([
+            rowNumber++,
             worker.worker_name,
             worker.worker_email,
             project.title,
             project.project_value,
             formatDate(project.completion_date),
-            project.payment_status === 'paid' ? 'Sudah Dibayar' : 'Belum Dibayar',
+            project.payment_status === 'paid' ? 'SUDAH DIBAYAR' : 'BELUM DIBAYAR',
             project.payment_date ? formatDate(project.payment_date) : '-'
           ]);
         });
       });
 
+      excelData.push([]); // Empty row before footer
+
+      // Footer Section
+      excelData.push(['']);
+      excelData.push(['Dicetak oleh:', 'Admin BETRIC']);
+      excelData.push(['Tanggal Cetak:', currentDate]);
+      excelData.push(['']);
+      excelData.push(['© PT BETRIC - Laporan ini bersifat rahasia dan hanya untuk penggunaan internal']);
+
       // Create worksheet
       const ws = XLSX.utils.aoa_to_sheet(excelData);
 
-      // Set column widths
+      // Set column widths (optimized for better readability)
       ws['!cols'] = [
+        { wch: 6 },  // No
         { wch: 20 }, // Worker Name
-        { wch: 30 }, // Worker Email
-        { wch: 35 }, // Project Title
+        { wch: 28 }, // Worker Email
+        { wch: 55 }, // Project Title (wider untuk judul panjang)
         { wch: 18 }, // Project Value
-        { wch: 18 }, // Completion Date
+        { wch: 15 }, // Completion Date
         { wch: 18 }, // Payment Status
-        { wch: 18 }  // Payment Date
+        { wch: 15 }  // Payment Date
       ];
 
-      // Style header row
-      const headerStyle = {
-        font: { bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "1E40AF" } },
-        alignment: { horizontal: "center", vertical: "center" }
-      };
+      // Set row heights for better spacing
+      if (!ws['!rows']) ws['!rows'] = [];
+      ws['!rows'][0] = { hpt: 35 }; // Company header - lebih tinggi
+      ws['!rows'][1] = { hpt: 22 }; // Period
+      ws['!rows'][2] = { hpt: 22 }; // Export date
+      ws['!rows'][3] = { hpt: 22 }; // Payment cycle
+      ws['!rows'][4] = { hpt: 8 };  // Empty row - spacing
+      ws['!rows'][5] = { hpt: 28 }; // Summary title - lebih tinggi
+      ws['!rows'][6] = { hpt: 24 }; // Summary row 1
+      ws['!rows'][7] = { hpt: 24 }; // Summary row 2
+      ws['!rows'][8] = { hpt: 24 }; // Summary row 3
+      ws['!rows'][9] = { hpt: 24 }; // Summary row 4
+      ws['!rows'][10] = { hpt: 8 }; // Empty row - spacing
+      ws['!rows'][11] = { hpt: 30 }; // Table header - lebih tinggi
 
-      // Apply header style
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-      for (let col = range.s.c; col <= range.e.c; col++) {
-        const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
-        if (!ws[cellRef]) continue;
-        ws[cellRef].s = headerStyle;
+      // Set default row height for data rows - lebih tinggi untuk wrap text
+      for (let i = 12; i < excelData.length; i++) {
+        if (!ws['!rows'][i]) ws['!rows'][i] = {};
+        ws['!rows'][i].hpt = 28; // Increased dari 22 ke 28
       }
 
-      // Format currency columns
-      for (let row = 1; row <= range.e.r; row++) {
-        const cellRef = XLSX.utils.encode_cell({ r: row, c: 3 }); // Column D (Project Value)
-        if (ws[cellRef]) {
-          ws[cellRef].z = '#,##0'; // Number format
+      // Add auto-filter to table headers (row 12, columns A-H)
+      ws['!autofilter'] = { ref: `A12:H${11 + rowNumber}` };
+
+      // Freeze panes: Freeze rows 1-12 (headers) and column A
+      ws['!freeze'] = { xSplit: 1, ySplit: 12, activePane: 'bottomRight' };
+
+      // Merge cells for header and summary
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }, // Company name
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } }, // Period
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 7 } }, // Export date
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 7 } }, // Payment cycle
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 7 } }, // Summary title
+        { s: { r: 6, c: 0 }, e: { r: 6, c: 1 } }, // Total Workers label + value
+        { s: { r: 7, c: 0 }, e: { r: 7, c: 1 } }, // Total Projects label + value
+        { s: { r: 8, c: 0 }, e: { r: 8, c: 1 } }, // Projects Dibayar label + value
+        { s: { r: 9, c: 0 }, e: { r: 9, c: 1 } }  // Projects Pending label + value
+      ];
+
+      // Style company header (row 1) - SUPER VIBRANT Purple-Blue Gradient
+      // Apply to all merged cells
+      const companyHeaderStyle = {
+        font: { bold: true, sz: 20, color: { rgb: "FFFFFF" }, name: "Arial Black" },
+        fill: { fgColor: { rgb: "6366F1" }, patternType: "solid" }, // Vibrant Indigo
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: { style: "thick", color: { rgb: "000000" } },
+          bottom: { style: "thick", color: { rgb: "000000" } },
+          left: { style: "thick", color: { rgb: "000000" } },
+          right: { style: "thick", color: { rgb: "000000" } }
+        }
+      };
+      for (let col = 0; col < 8; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+        ws[cellRef].s = companyHeaderStyle;
+      }
+
+      // Style period, export date, payment cycle (rows 2-4) - Vibrant Gradient
+      const colors = ["93C5FD", "60A5FA", "3B82F6"]; // Vibrant blue gradient
+      for (let row = 1; row <= 3; row++) {
+        const rowStyle = {
+          font: { bold: true, sz: 11, color: { rgb: "FFFFFF" }, name: "Calibri" },
+          alignment: { horizontal: "center", vertical: "center" },
+          fill: { fgColor: { rgb: colors[row - 1] }, patternType: "solid" },
+          border: {
+            top: { style: "medium", color: { rgb: "000000" } },
+            bottom: { style: "medium", color: { rgb: "000000" } },
+            left: { style: "medium", color: { rgb: "000000" } },
+            right: { style: "medium", color: { rgb: "000000" } }
+          }
+        };
+        // Apply to all merged cells
+        for (let col = 0; col < 8; col++) {
+          const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+          ws[cellRef].s = rowStyle;
         }
       }
 
+      // Style summary title (row 6) - SUPER VIBRANT Pink/Magenta
+      const summaryTitleStyle = {
+        font: { bold: true, sz: 16, color: { rgb: "FFFFFF" }, name: "Arial Black" },
+        fill: { fgColor: { rgb: "EC4899" }, patternType: "solid" }, // Vibrant Pink
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: { style: "thick", color: { rgb: "000000" } },
+          bottom: { style: "thick", color: { rgb: "000000" } },
+          left: { style: "thick", color: { rgb: "000000" } },
+          right: { style: "thick", color: { rgb: "000000" } }
+        }
+      };
+      // Apply to all merged cells
+      for (let col = 0; col < 8; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: 5, c: col });
+        if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+        ws[cellRef].s = summaryTitleStyle;
+      }
+
+      // Style summary data (rows 7-10) - Vibrant colorful boxes with gradients
+      const summaryColors = [
+        { label: "DBEAFE", value: "3B82F6", text: "1E3A8A" },  // Vibrant Blue - Total Workers
+        { label: "BBF7D0", value: "22C55E", text: "065F46" },  // Vibrant Green - Total Projects
+        { label: "D1FAE5", value: "10B981", text: "047857" },  // Emerald - Projects Dibayar
+        { label: "FED7AA", value: "F97316", text: "9A3412" }   // Vibrant Orange - Projects Pending
+      ];
+
+      for (let row = 6; row <= 10; row++) {
+        const colorIndex = row - 7;
+
+        if (colorIndex >= 0) {
+          // Style first merged cell (A-B) with label and value - VIBRANT!
+          const cellARef = XLSX.utils.encode_cell({ r: row, c: 0 });
+          const cellBRef = XLSX.utils.encode_cell({ r: row, c: 1 });
+          const mergedStyle = {
+            font: {
+              bold: true,
+              sz: 12,
+              color: { rgb: "FFFFFF" },
+              name: "Calibri"
+            },
+            fill: { fgColor: { rgb: summaryColors[colorIndex].value }, patternType: "solid" },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thick", color: { rgb: "000000" } },
+              bottom: { style: "thick", color: { rgb: "000000" } },
+              left: { style: "thick", color: { rgb: "000000" } },
+              right: { style: "thick", color: { rgb: "000000" } }
+            }
+          };
+          if (!ws[cellARef]) ws[cellARef] = { v: '', t: 's' };
+          if (!ws[cellBRef]) ws[cellBRef] = { v: '', t: 's' };
+          ws[cellARef].s = mergedStyle;
+          ws[cellBRef].s = mergedStyle;
+
+          // Style columns C and D (Total Nilai / Nilai Dibayar / Nilai Pending)
+          for (let col = 2; col < 4; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+            const isLabel = col === 2;
+
+            if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+
+            ws[cellRef].s = {
+              font: {
+                bold: true,
+                sz: isLabel ? 11 : 13,
+                color: { rgb: isLabel ? summaryColors[colorIndex].text : "FFFFFF" },
+                name: "Calibri"
+              },
+              fill: {
+                fgColor: { rgb: isLabel ? summaryColors[colorIndex].label : summaryColors[colorIndex].value },
+                patternType: "solid"
+              },
+              alignment: { horizontal: isLabel ? "left" : "center", vertical: "center" },
+              border: {
+                top: { style: "thick", color: { rgb: "000000" } },
+                bottom: { style: "thick", color: { rgb: "000000" } },
+                left: { style: "thick", color: { rgb: "000000" } },
+                right: { style: "thick", color: { rgb: "000000" } }
+              }
+            };
+
+            // Format currency values in summary
+            if (typeof ws[cellRef].v === 'number' && col === 3) {
+              ws[cellRef].z = '"Rp "#,##0';
+            }
+          }
+        }
+      }
+
+      // Style table header (row 12) - Rainbow Gradient with better borders
+      const headerRow = 11;
+      const headerColors = [
+        "EF4444", // Red - No
+        "F97316", // Orange - Worker Name
+        "EAB308", // Yellow - Email
+        "22C55E", // Green - Project Title
+        "10B981", // Emerald - Value
+        "06B6D4", // Cyan - Completion Date
+        "3B82F6", // Blue - Payment Status
+        "8B5CF6"  // Purple - Payment Date
+      ];
+      for (let col = 0; col < 8; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: headerRow, c: col });
+        if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+
+        ws[cellRef].s = {
+          font: { bold: true, sz: 12, color: { rgb: "FFFFFF" }, name: "Calibri" },
+          fill: { fgColor: { rgb: headerColors[col] }, patternType: "solid" },
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          border: {
+            top: { style: "thick", color: { rgb: "000000" } },
+            bottom: { style: "thick", color: { rgb: "000000" } },
+            left: { style: "medium", color: { rgb: "FFFFFF" } },
+            right: { style: "medium", color: { rgb: "FFFFFF" } }
+          }
+        };
+      }
+
+      // Style data rows with vibrant alternating colors and gradient effect
+      const dataStartRow = 12;
+      const dataEndRow = dataStartRow + (rowNumber - 1);
+
+      // Define more vibrant color schemes for alternating rows
+      const rowColorSchemes = [
+        { bg: "E0F2FE", border: "0EA5E9" }, // Sky blue
+        { bg: "DBEAFE", border: "3B82F6" }, // Blue
+        { bg: "DDD6FE", border: "8B5CF6" }, // Purple
+        { bg: "FCE7F3", border: "EC4899" }, // Pink
+        { bg: "FEE2E2", border: "EF4444" }, // Red
+        { bg: "FED7AA", border: "F97316" }, // Orange
+        { bg: "FEF08A", border: "EAB308" }, // Yellow
+        { bg: "D9F99D", border: "84CC16" }, // Lime
+        { bg: "BBF7D0", border: "22C55E" }, // Green
+        { bg: "A7F3D0", border: "10B981" }  // Emerald
+      ];
+
+      for (let row = dataStartRow; row < dataEndRow; row++) {
+        const rowIndex = row - dataStartRow;
+        const colorScheme = rowColorSchemes[rowIndex % rowColorSchemes.length];
+
+        for (let col = 0; col < 8; col++) {
+          const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+          if (ws[cellRef]) {
+            ws[cellRef].s = {
+              font: {
+                sz: col === 4 ? 11 : 10,
+                color: { rgb: "1E293B" },
+                name: "Calibri"
+              },
+              fill: { fgColor: { rgb: colorScheme.bg }, patternType: "solid" },
+              alignment: {
+                horizontal: col === 0 || col === 4 || col === 5 || col === 6 || col === 7 ? "center" : "left",
+                vertical: "top",
+                wrapText: col === 3
+              },
+              border: {
+                top: { style: "medium", color: { rgb: colorScheme.border } },
+                bottom: { style: "medium", color: { rgb: colorScheme.border } },
+                left: { style: "thin", color: { rgb: colorScheme.border } },
+                right: { style: "thin", color: { rgb: colorScheme.border } }
+              }
+            };
+
+            // Format currency with Rp prefix and thousand separator
+            if (col === 4 && typeof ws[cellRef].v === 'number') {
+              ws[cellRef].z = '"Rp "#,##0';
+              ws[cellRef].s.font = { sz: 12, bold: true, color: { rgb: "047857" }, name: "Calibri" };
+              // Keep the row's background color for currency column
+            }
+
+            // Color code payment status with vibrant colors
+            if (col === 6) {
+              const isPaid = ws[cellRef].v === 'SUDAH DIBAYAR';
+              ws[cellRef].s.font = {
+                bold: true,
+                sz: 10,
+                color: { rgb: "FFFFFF" },
+                name: "Calibri"
+              };
+              ws[cellRef].s.fill = {
+                fgColor: { rgb: isPaid ? "10B981" : "F59E0B" },
+                patternType: "solid"
+              };
+              ws[cellRef].s.alignment = { horizontal: "center", vertical: "center" };
+              ws[cellRef].s.border = {
+                top: { style: "medium", color: { rgb: isPaid ? "059669" : "D97706" } },
+                bottom: { style: "medium", color: { rgb: isPaid ? "059669" : "D97706" } },
+                left: { style: "medium", color: { rgb: isPaid ? "059669" : "D97706" } },
+                right: { style: "medium", color: { rgb: isPaid ? "059669" : "D97706" } }
+              };
+            }
+
+            // Highlight nomor with gradient color matching the row scheme
+            if (col === 0) {
+              ws[cellRef].s.font = { sz: 11, bold: true, color: { rgb: "1E40AF" }, name: "Calibri" };
+              // Keep the gradient background from colorScheme
+            }
+
+            // Format date columns
+            if ((col === 5 || col === 7) && ws[cellRef].v && ws[cellRef].v !== '-') {
+              ws[cellRef].s.font = { sz: 10, color: { rgb: "475569" }, name: "Calibri" };
+            }
+
+            // Worker name and email styling
+            if (col === 1 || col === 2) {
+              ws[cellRef].s.font = {
+                sz: col === 1 ? 10 : 10,
+                bold: col === 1,
+                color: { rgb: col === 1 ? "1E40AF" : "475569" },
+                name: "Calibri"
+              };
+              ws[cellRef].s.alignment = {
+                horizontal: "left",
+                vertical: "top",
+                wrapText: false
+              };
+            }
+
+            // Project title styling
+            if (col === 3) {
+              ws[cellRef].s.font = { sz: 10, color: { rgb: "0F172A" }, name: "Calibri" };
+              ws[cellRef].s.alignment = {
+                horizontal: "left",
+                vertical: "top",
+                wrapText: true
+              };
+            }
+          }
+        }
+      }
+
+      // Add total row at the bottom of the table
+      const totalRow = dataEndRow;
+      const totalValueRef = XLSX.utils.encode_cell({ r: totalRow, c: 4 });
+
+      // Calculate total value
+      let totalValue = 0;
+      for (let row = dataStartRow; row < dataEndRow; row++) {
+        const cellRef = XLSX.utils.encode_cell({ r: row, c: 4 });
+        if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
+          totalValue += ws[cellRef].v;
+        }
+      }
+
+      // Style and populate total row
+      for (let col = 0; col < 8; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: totalRow, c: col });
+
+        if (col === 0) {
+          // Merge cells A-D for "TOTAL" label - VIBRANT RED
+          if (!ws['!merges']) ws['!merges'] = [];
+          ws['!merges'].push({ s: { r: totalRow, c: 0 }, e: { r: totalRow, c: 3 } });
+
+          const totalLabelStyle = {
+            font: { bold: true, sz: 14, color: { rgb: "FFFFFF" }, name: "Calibri" },
+            fill: { fgColor: { rgb: "DC2626" }, patternType: "solid" }, // Vibrant Red
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thick", color: { rgb: "000000" } },
+              bottom: { style: "thick", color: { rgb: "000000" } },
+              left: { style: "thick", color: { rgb: "000000" } },
+              right: { style: "thick", color: { rgb: "000000" } }
+            }
+          };
+
+          // Apply to all merged cells (A-D)
+          for (let mergeCol = 0; mergeCol <= 3; mergeCol++) {
+            const mergeCellRef = XLSX.utils.encode_cell({ r: totalRow, c: mergeCol });
+            if (!ws[mergeCellRef]) ws[mergeCellRef] = { v: '', t: 's' };
+            ws[mergeCellRef].s = totalLabelStyle;
+          }
+          ws[cellRef].v = '💰 TOTAL KESELURUHAN 💰';
+        } else if (col === 4) {
+          // Total value column - VIBRANT GREEN/GOLD
+          ws[cellRef] = { v: totalValue, t: 'n' };
+          ws[cellRef].z = '"Rp "#,##0';
+          ws[cellRef].s = {
+            font: { bold: true, sz: 16, color: { rgb: "FFFFFF" }, name: "Calibri" },
+            fill: { fgColor: { rgb: "16A34A" }, patternType: "solid" }, // Vibrant Green
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thick", color: { rgb: "000000" } },
+              bottom: { style: "thick", color: { rgb: "000000" } },
+              left: { style: "thick", color: { rgb: "000000" } },
+              right: { style: "thick", color: { rgb: "000000" } }
+            }
+          };
+        } else if (col > 4) {
+          // Empty cells after total value - match red theme
+          if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: "FEE2E2" }, patternType: "solid" }, // Light red
+            border: {
+              top: { style: "thick", color: { rgb: "000000" } },
+              bottom: { style: "thick", color: { rgb: "000000" } },
+              left: { style: "thin", color: { rgb: "000000" } },
+              right: { style: "thick", color: { rgb: "000000" } }
+            }
+          };
+        }
+      }
+
+      // Set total row height
+      if (!ws['!rows'][totalRow]) ws['!rows'][totalRow] = {};
+      ws['!rows'][totalRow].hpt = 32; // Lebih tinggi untuk total row
+
+      // Add spacing after total row
+      const footerStartRow = totalRow + 1;
+      if (!ws['!rows'][footerStartRow]) ws['!rows'][footerStartRow] = {};
+      ws['!rows'][footerStartRow].hpt = 8; // Empty row spacing
+
       // Create workbook
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Payroll Report');
+      XLSX.utils.book_append_sheet(wb, ws, 'Laporan Payroll');
 
-      // Generate filename with date
-      const filename = `Payroll_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      // Add workbook properties
+      wb.Props = {
+        Title: "Laporan Payroll Workers BETRIC",
+        Subject: "Payroll Report",
+        Author: "PT BETRIC",
+        CreatedDate: new Date()
+      };
 
-      // Download file
-      XLSX.writeFile(wb, filename);
+      // Generate filename
+      const filename = `BETRIC_Payroll_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Download file with cellStyles enabled
+      XLSX.writeFile(wb, filename, {
+        cellStyles: true,
+        bookType: 'xlsx',
+        type: 'binary'
+      });
 
       await Swal.fire({
         title: '📊 Export Berhasil!',
-        text: 'Report berhasil di-export ke Excel!',
+        html: `Laporan berhasil di-export ke Excel!<br/><small>${filename}</small>`,
         icon: 'success',
         confirmButtonColor: '#16a34a',
         confirmButtonText: 'OK',
-        timer: 2000,
+        timer: 3000,
         customClass: {
           popup: 'rounded-2xl',
           confirmButton: 'rounded-xl px-6 py-3'
@@ -447,23 +863,388 @@ export default function ReportsPage() {
 
   const handleExportToPDF = async () => {
     try {
+      const doc = new jsPDF('l', 'mm', 'a4'); // Landscape, millimeters, A4
+      const currentDate = new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      // Colors - RGB format for jsPDF (as tuples)
+      const colors = {
+        primary: [99, 102, 241] as [number, number, number],      // Indigo
+        primaryDark: [67, 56, 202] as [number, number, number],   // Dark Indigo
+        blue: [59, 130, 246] as [number, number, number],          // Blue
+        blueLight: [147, 197, 253] as [number, number, number],    // Light Blue
+        pink: [236, 72, 153] as [number, number, number],          // Pink
+        pinkDark: [219, 39, 119] as [number, number, number],      // Dark Pink
+        green: [16, 185, 129] as [number, number, number],         // Green
+        greenDark: [5, 150, 105] as [number, number, number],      // Dark Green
+        red: [239, 68, 68] as [number, number, number],            // Red
+        redDark: [220, 38, 38] as [number, number, number],        // Dark Red
+        orange: [249, 115, 22] as [number, number, number],        // Orange
+        orangeDark: [234, 88, 12] as [number, number, number],     // Dark Orange
+        white: [255, 255, 255] as [number, number, number],
+        black: [0, 0, 0] as [number, number, number],
+        gray: [156, 163, 175] as [number, number, number],
+        grayLight: [243, 244, 246] as [number, number, number],
+        text: [30, 41, 59] as [number, number, number]             // Dark slate
+      };
+
+      // Page setup
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      let currentY = margin + 5;
+
+      // ========== BACKGROUND PATTERN ==========
+      // Add subtle background color
+      doc.setFillColor(...colors.grayLight);
+      doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+      // ========== HEADER SECTION WITH SHADOW ==========
+      // Shadow effect
+      doc.setFillColor(200, 200, 200);
+      doc.rect(margin + 1, currentY + 1, pageWidth - (margin * 2), 25, 'F');
+
+      // Main header background with gradient effect
+      doc.setFillColor(...colors.primaryDark);
+      doc.rect(margin, currentY, pageWidth - (margin * 2), 25, 'F');
+
+      // Add border
+      doc.setDrawColor(...colors.black);
+      doc.setLineWidth(0.5);
+      doc.rect(margin, currentY, pageWidth - (margin * 2), 25, 'S');
+
+      // Company name
+      doc.setTextColor(...colors.white);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LAPORAN PAYROLL WORKERS', pageWidth / 2, currentY + 12, { align: 'center' });
+
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'normal');
+      doc.text('PT BETRIC', pageWidth / 2, currentY + 20, { align: 'center' });
+
+      currentY += 30;
+
+      // ========== INFO HEADER WITH SHADOW ==========
+      // Shadow effect
+      doc.setFillColor(220, 220, 220);
+      doc.rect(margin + 0.5, currentY + 0.5, pageWidth - (margin * 2), 10, 'F');
+
+      // Gradient background - Blue gradient effect
+      doc.setFillColor(...colors.blueLight);
+      doc.rect(margin, currentY, pageWidth - (margin * 2), 10, 'F');
+
+      // Border
+      doc.setDrawColor(...colors.blue);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, currentY, pageWidth - (margin * 2), 10, 'S');
+
+      // Text with decorative bullets
+      doc.setTextColor(...colors.primaryDark);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Periode: ${dateRange} Hari Terakhir  |  Export: ${currentDate}  |  Siklus: Tanggal 14`, pageWidth / 2, currentY + 6.5, { align: 'center' });
+
+      currentY += 16;
+
+      // ========== SUMMARY SECTION ==========
+      // Summary Title with shadow
+      // Shadow effect
+      doc.setFillColor(200, 200, 200);
+      doc.rect(margin + 0.5, currentY + 0.5, pageWidth - (margin * 2), 12, 'F');
+
+      // Main background - Pink to Dark Pink gradient effect
+      doc.setFillColor(...colors.pinkDark);
+      doc.rect(margin, currentY, pageWidth - (margin * 2), 12, 'F');
+
+      // Border
+      doc.setDrawColor(...colors.white);
+      doc.setLineWidth(0.5);
+      doc.rect(margin, currentY, pageWidth - (margin * 2), 12, 'S');
+
+      // Decorative lines on sides of title
+      doc.setDrawColor(...colors.white);
+      doc.setLineWidth(1.5);
+      const titleTextWidth = 90; // approximate width of text
+      doc.line(pageWidth / 2 - titleTextWidth / 2 - 15, currentY + 6, pageWidth / 2 - titleTextWidth / 2 - 5, currentY + 6);
+      doc.line(pageWidth / 2 + titleTextWidth / 2 + 5, currentY + 6, pageWidth / 2 + titleTextWidth / 2 + 15, currentY + 6);
+
+      // Title text
+      doc.setTextColor(...colors.white);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RINGKASAN PAYROLL', pageWidth / 2, currentY + 8, { align: 'center' });
+
+      currentY += 15;
+
+      // Summary Boxes with shadow effects
+      const summaryData = [
+        { label: 'Total Projects', value: totalSummary.total_projects, amount: totalSummary.total_amount, color: colors.blue, darkColor: [29, 78, 216] as [number, number, number] },
+        { label: 'Sudah Dibayar', value: totalSummary.paid_projects, amount: totalSummary.paid_amount, color: colors.green, darkColor: [4, 120, 87] as [number, number, number] },
+        { label: 'Belum Dibayar', value: totalSummary.pending_projects, amount: totalSummary.pending_amount, color: colors.orange, darkColor: [194, 65, 12] as [number, number, number] }
+      ];
+
+      const boxWidth = (pageWidth - (margin * 2)) / 3 - 2;
+      const boxHeight = 22;
+      let boxX = margin;
+
+      summaryData.forEach((item) => {
+        // Shadow effect for depth
+        doc.setFillColor(180, 180, 180);
+        doc.rect(boxX + 1, currentY + 1, boxWidth, boxHeight, 'F');
+
+        // Darker gradient at bottom (simulating gradient)
+        doc.setFillColor(...item.darkColor);
+        doc.rect(boxX, currentY + boxHeight - 5, boxWidth, 5, 'F');
+
+        // Main box background
+        doc.setFillColor(...item.color);
+        doc.rect(boxX, currentY, boxWidth, boxHeight - 5, 'F');
+
+        // Border with contrasting color
+        doc.setDrawColor(...colors.white);
+        doc.setLineWidth(1);
+        doc.rect(boxX, currentY, boxWidth, boxHeight, 'S');
+
+        // Inner glow effect (lighter rectangle inside)
+        doc.setFillColor(255, 255, 255, 0.2);
+        doc.rect(boxX + 2, currentY + 2, boxWidth - 4, 6, 'F');
+
+        // Decorative bullet point
+        doc.setFillColor(255, 255, 255);
+        doc.circle(boxX + 5, currentY + 5, 1.5, 'F');
+
+        // Text - Label
+        doc.setTextColor(...colors.white);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(item.label, boxX + boxWidth / 2, currentY + 7, { align: 'center' });
+
+        // Value
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${item.value} Projects`, boxX + boxWidth / 2, currentY + 13, { align: 'center' });
+
+        // Amount with smaller font
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(formatCurrency(item.amount), boxX + boxWidth / 2, currentY + 19, { align: 'center' });
+
+        boxX += boxWidth + 2;
+      });
+
+      currentY += 28;
+
+      // ========== TABLE SECTION ==========
+      // Prepare table data
+      const tableData: any[] = [];
+      let rowNumber = 1;
+
+      filteredData.forEach(worker => {
+        worker.projects.forEach(project => {
+          tableData.push([
+            rowNumber++,
+            worker.worker_name,
+            worker.worker_email,
+            project.title,
+            formatCurrency(project.project_value),
+            formatDate(project.completion_date),
+            project.payment_status === 'paid' ? 'SUDAH DIBAYAR' : 'BELUM DIBAYAR',
+            project.payment_date ? formatDate(project.payment_date) : '-'
+          ]);
+        });
+      });
+
+      // Table with autoTable and enhanced styling
+      autoTable(doc, {
+        startY: currentY,
+        head: [[
+          'No',
+          'Nama Worker',
+          'Email Worker',
+          'Judul Project',
+          'Nilai Project',
+          'Tgl Selesai',
+          'Status',
+          'Tgl Bayar'
+        ]],
+        body: tableData,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 3.5,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.2,
+          textColor: colors.text,
+          font: 'helvetica',
+          minCellHeight: 8
+        },
+        headStyles: {
+          fillColor: colors.primaryDark as any,
+          textColor: colors.white as any,
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center',
+          valign: 'middle',
+          cellPadding: 4,
+          lineWidth: 0.3,
+          lineColor: colors.white as any
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10, fontStyle: 'bold' },  // No
+          1: { cellWidth: 30 },                                        // Name
+          2: { cellWidth: 40, fontSize: 7 },                          // Email
+          3: { cellWidth: 60 },                                        // Project
+          4: { halign: 'right', cellWidth: 25 },                      // Value
+          5: { halign: 'center', cellWidth: 22 },                     // Date
+          6: { halign: 'center', cellWidth: 25 },                     // Status
+          7: { halign: 'center', cellWidth: 22 }                      // Payment Date
+        },
+        alternateRowStyles: {
+          fillColor: [245, 247, 250] // Very light gray-blue
+        },
+        didParseCell: function(data: any) {
+          // Enhanced status cells with better colors
+          if (data.column.index === 6 && data.section === 'body') {
+            const isPaid = data.cell.raw === 'SUDAH DIBAYAR';
+            if (isPaid) {
+              data.cell.styles.fillColor = [16, 185, 129]; // Vibrant green
+              data.cell.styles.textColor = [255, 255, 255]; // White text
+            } else {
+              data.cell.styles.fillColor = [249, 115, 22]; // Vibrant orange
+              data.cell.styles.textColor = [255, 255, 255]; // White text
+            }
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fontSize = 8;
+          }
+          // Bold and colored currency values
+          if (data.column.index === 4 && data.section === 'body') {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.textColor = [5, 150, 105]; // Dark green
+            data.cell.styles.fontSize = 8;
+          }
+          // Highlight worker names
+          if (data.column.index === 1 && data.section === 'body') {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.textColor = [67, 56, 202]; // Indigo
+          }
+        }
+      });
+
+      // ========== TOTAL ROW WITH ENHANCED STYLING ==========
+      const finalY = (doc as any).lastAutoTable.finalY + 4;
+
+      // Calculate total
+      let totalValue = 0;
+      filteredData.forEach(worker => {
+        worker.projects.forEach(project => {
+          totalValue += project.project_value;
+        });
+      });
+
+      // Shadow effect for entire total row
+      doc.setFillColor(190, 190, 190);
+      doc.rect(margin + 1, finalY + 1, pageWidth - (margin * 2), 14, 'F');
+
+      // Total label section with gradient effect
+      const labelWidth = (pageWidth - (margin * 2)) * 0.7;
+      const valueWidth = (pageWidth - (margin * 2)) * 0.3;
+
+      // Dark red gradient at bottom
+      doc.setFillColor(...colors.redDark);
+      doc.rect(margin, finalY + 10, labelWidth, 4, 'F');
+
+      // Main red background
+      doc.setFillColor(...colors.red);
+      doc.rect(margin, finalY, labelWidth, 10, 'F');
+
+      // Border for label
+      doc.setDrawColor(...colors.white);
+      doc.setLineWidth(1);
+      doc.rect(margin, finalY, labelWidth, 14, 'S');
+
+      // Decorative stars/bullets for total
+      doc.setFillColor(...colors.white);
+      doc.circle(margin + 15, finalY + 7, 1.2, 'F');
+      doc.circle(margin + labelWidth - 15, finalY + 7, 1.2, 'F');
+
+      // Label text
+      doc.setTextColor(...colors.white);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TOTAL KESELURUHAN', margin + labelWidth / 2, finalY + 9, { align: 'center' });
+
+      // Total value section with gradient
+      // Dark green gradient at bottom
+      doc.setFillColor(...colors.greenDark);
+      doc.rect(margin + labelWidth, finalY + 10, valueWidth, 4, 'F');
+
+      // Main green background
+      doc.setFillColor(...colors.green);
+      doc.rect(margin + labelWidth, finalY, valueWidth, 10, 'F');
+
+      // Border for value
+      doc.setDrawColor(...colors.white);
+      doc.setLineWidth(1);
+      doc.rect(margin + labelWidth, finalY, valueWidth, 14, 'S');
+
+      // Value text
+      doc.setFontSize(15);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(totalValue), margin + labelWidth + valueWidth / 2, finalY + 9, { align: 'center' });
+
+      // ========== ENHANCED FOOTER ==========
+      const footerY = pageHeight - 18;
+
+      // Footer background with subtle color
+      doc.setFillColor(250, 250, 250);
+      doc.rect(0, footerY - 5, pageWidth, 25, 'F');
+
+      // Top border line
+      doc.setDrawColor(...colors.primary);
+      doc.setLineWidth(0.5);
+      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+
+      // Footer text
+      doc.setTextColor(...colors.gray);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Dicetak oleh: Admin BETRIC  |  Tanggal: ${currentDate}`, pageWidth / 2, footerY, { align: 'center' });
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colors.text);
+      doc.text('© PT BETRIC - Laporan ini bersifat rahasia dan dilindungi undang-undang', pageWidth / 2, footerY + 5, { align: 'center' });
+
+      // Decorative elements (small diamonds)
+      doc.setFillColor(...colors.primary);
+      doc.circle(pageWidth / 2 - 3, footerY + 9, 0.8, 'F');
+      doc.circle(pageWidth / 2, footerY + 9, 0.8, 'F');
+      doc.circle(pageWidth / 2 + 3, footerY + 9, 0.8, 'F');
+
+      // ========== SAVE PDF ==========
+      const filename = `BETRIC_Payroll_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+
       await Swal.fire({
-        title: '📄 Export ke PDF',
-        text: 'Silakan pilih "Save as PDF" di dialog print',
-        icon: 'info',
-        confirmButtonColor: '#1e40af',
-        confirmButtonText: 'OK, Lanjutkan',
-        timer: 2000,
+        title: '📄 Export PDF Berhasil!',
+        html: `Laporan berhasil di-export ke PDF!<br/><small>${filename}</small>`,
+        icon: 'success',
+        confirmButtonColor: '#16a34a',
+        confirmButtonText: 'OK',
+        timer: 3000,
         customClass: {
           popup: 'rounded-2xl',
           confirmButton: 'rounded-xl px-6 py-3'
         }
       });
-      window.print();
     } catch (error) {
       console.error('Export to PDF error:', error);
       await Swal.fire({
-        title: '❌ Export Gagal!',
+        title: '❌ Export PDF Gagal!',
         text: 'Gagal export ke PDF',
         icon: 'error',
         confirmButtonColor: '#dc2626',
@@ -544,19 +1325,254 @@ export default function ReportsPage() {
     <>
       {/* Print Styles for PDF Export */}
       <style jsx global>{`
+        /* Print-only content hidden by default */
+        .print-only-content {
+          display: none;
+        }
+
         @media print {
           @page {
-            margin: 1cm;
+            margin: 1.5cm;
+            size: A4;
           }
+
           body {
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
+            color-adjust: exact;
           }
+
+          /* Hide screen elements */
           header, .no-print {
             display: none !important;
           }
+
+          /* Show print-only content */
+          .print-only-content {
+            display: block !important;
+          }
+
+          /* PDF Header Styling */
+          .pdf-header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+          }
+
+          .pdf-header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+          }
+
+          .pdf-logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+          }
+
+          .pdf-logo {
+            width: 60px;
+            height: 60px;
+            background: white;
+            padding: 8px;
+            border-radius: 8px;
+          }
+
+          .pdf-company-info h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 0 5px 0;
+          }
+
+          .pdf-company-info p {
+            margin: 2px 0;
+            font-size: 12px;
+            opacity: 0.95;
+          }
+
+          .pdf-doc-info {
+            text-align: right;
+          }
+
+          .pdf-doc-info h2 {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 0 0 8px 0;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+          }
+
+          .pdf-doc-info p {
+            margin: 3px 0;
+            font-size: 11px;
+          }
+
+          /* Summary Section */
+          .pdf-summary {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+          }
+
+          .pdf-summary h3 {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1e40af;
+            margin: 0 0 12px 0;
+            text-align: center;
+            border-bottom: 2px solid #1e40af;
+            padding-bottom: 8px;
+          }
+
+          .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+
+          .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+          }
+
+          .summary-item.success {
+            background: #d1fae5;
+            border-color: #10b981;
+          }
+
+          .summary-item.warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+          }
+
+          .summary-item .label {
+            font-weight: 600;
+            color: #475569;
+            font-size: 11px;
+          }
+
+          .summary-item .value {
+            font-weight: bold;
+            color: #1e293b;
+            font-size: 12px;
+          }
+
+          .summary-item.success .value {
+            color: #059669;
+          }
+
+          .summary-item.warning .value {
+            color: #d97706;
+          }
+
+          /* Table Styling */
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 10px;
+          }
+
+          table thead {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+          }
+
+          table thead th {
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: bold;
+            border: 1px solid #047857;
+          }
+
+          table tbody tr {
+            page-break-inside: avoid;
+          }
+
+          table tbody tr:nth-child(even) {
+            background: #f0fdf4;
+          }
+
+          table tbody tr:nth-child(odd) {
+            background: white;
+          }
+
+          table tbody td {
+            padding: 10px 8px;
+            border: 1px solid #e5e7eb;
+          }
+
+          /* Payment Status Styling */
+          .status-paid {
+            background: #d1fae5 !important;
+            color: #059669 !important;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+          }
+
+          .status-pending {
+            background: #fef3c7 !important;
+            color: #d97706 !important;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+          }
+
+          /* Footer */
+          .pdf-footer {
+            display: block !important;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 30px;
+            background: #f8fafc;
+            border-top: 3px solid #1e40af;
+            text-align: center;
+            font-size: 9px;
+            color: #64748b;
+          }
+
+          .pdf-footer p {
+            margin: 3px 0;
+            line-height: 1.4;
+          }
+
+          .pdf-footer strong {
+            color: #1e40af;
+            font-size: 11px;
+          }
+
+          /* Page breaks */
           .print-break {
             page-break-inside: avoid;
+          }
+
+          /* Worker sections */
+          .bg-white\\/80 {
+            background: white !important;
+            border: 1px solid #e2e8f0 !important;
+            margin-bottom: 15px;
+            page-break-inside: avoid;
+          }
+
+          /* Ensure colors are printed */
+          * {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
           }
         }
       `}</style>
@@ -882,27 +1898,39 @@ export default function ReportsPage() {
                                 </div>
 
                                 <div className="flex items-center space-x-2 no-print">
-                                  {/* Toggle Status Button - Always visible */}
+                                  {/* Toggle Status Button - Enhanced Design */}
                                   <button
                                     onClick={() => handleTogglePaymentStatus(project.id, worker.worker_id, project.payment_status)}
                                     disabled={isProcessing || selectedProjects.has(project.id)}
-                                    className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    className={`relative px-5 py-2.5 text-sm rounded-xl font-bold transition-all duration-200 flex items-center space-x-2.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 ${
                                       project.payment_status === 'paid'
-                                        ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                                        : 'bg-green-600 hover:bg-green-700 text-white'
+                                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-2 border-amber-300/50'
+                                        : 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white border-2 border-emerald-300/50'
                                     }`}
                                   >
-                                    {project.payment_status === 'paid' ? (
-                                      <>
-                                        <span>⏳</span>
-                                        <span>Ubah Jadi Pending</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span>✅</span>
-                                        <span>Tandai Dibayar</span>
-                                      </>
-                                    )}
+                                    {/* Icon Container with animation */}
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/20">
+                                      {project.payment_status === 'paid' ? (
+                                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                        </svg>
+                                      ) : (
+                                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </span>
+
+                                    {/* Text */}
+                                    <span className="tracking-wide">
+                                      {project.payment_status === 'paid' ? 'Ubah Jadi Pending' : 'Tandai Dibayar'}
+                                    </span>
+
+                                    {/* Shine effect */}
+                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-500" style={{
+                                      backgroundSize: '200% 100%',
+                                      animation: 'shine 2s infinite'
+                                    }}></div>
                                   </button>
                                 </div>
                               </div>
@@ -926,23 +1954,39 @@ export default function ReportsPage() {
           </h3>
 
           <div className="flex flex-wrap gap-4">
-            <button
-              onClick={handleExportToExcel}
-              disabled={filteredData.length === 0}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span>📊</span>
-              <span>Export ke Excel</span>
-            </button>
-
+            {/* PDF Export Button */}
             <button
               onClick={handleExportToPDF}
               disabled={filteredData.length === 0}
-              className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105"
             >
-              <span>📄</span>
-              <span>Export ke PDF</span>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <span>Download Laporan PDF</span>
             </button>
+
+            {/* Excel Export Button */}
+            <button
+              onClick={handleExportToExcel}
+              disabled={filteredData.length === 0}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Download Laporan Excel</span>
+            </button>
+          </div>
+
+          <div className="mt-4 text-sm text-gray-600 bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <p className="font-semibold text-blue-900 mb-2">ℹ️ Informasi Export:</p>
+            <ul className="space-y-1 list-disc list-inside text-blue-800">
+              <li><strong>PDF:</strong> Langsung bisa dibuka tanpa edit, cocok untuk print dan share</li>
+              <li><strong>Excel:</strong> Bisa diedit dan difilter, cocok untuk analisis lebih lanjut</li>
+              <li>Kedua format sudah include header perusahaan, ringkasan payroll, dan styling profesional berwarna</li>
+              <li>File akan ter-download otomatis dengan format: <strong>BETRIC_Payroll_Report_[tanggal]</strong></li>
+            </ul>
           </div>
         </div>
       </main>
