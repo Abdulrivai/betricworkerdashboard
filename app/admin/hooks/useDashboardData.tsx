@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface Stats {
   totalProjects: number;
@@ -33,40 +33,64 @@ export function useDashboardData() {
     onTimeCompletion: 0,
     lateCompletion: 0
   });
-  
+
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  // Cache timestamp to prevent unnecessary refetches
+  const lastFetchTime = useRef<number>(0);
+  const CACHE_DURATION = 5000; // 5 seconds cache (reduced for real-time updates)
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async (forceRefresh = false) => {
     try {
+      // Check if we have fresh data in cache
+      const now = Date.now();
+      if (!forceRefresh && now - lastFetchTime.current < CACHE_DURATION) {
+        console.log('📦 Using cached dashboard data');
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
       console.log('🔄 Fetching dashboard data...');
 
-      // Fetch stats
-      const statsResponse = await fetch('/api/admin/dashboard/stats');
+      // Fetch both in parallel for better performance - NO CACHE for real-time data
+      const [statsResponse, projectsResponse] = await Promise.all([
+        fetch('/api/admin/dashboard/stats', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          }
+        }),
+        fetch('/api/admin/dashboard/recent-projects', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          }
+        })
+      ]);
+
       if (!statsResponse.ok) {
         throw new Error(`Failed to fetch stats: ${statsResponse.status}`);
       }
-      const statsData = await statsResponse.json();
-
-      // Fetch recent projects
-      const projectsResponse = await fetch('/api/admin/dashboard/recent-projects');
       if (!projectsResponse.ok) {
         throw new Error(`Failed to fetch recent projects: ${projectsResponse.status}`);
       }
-      const projectsData = await projectsResponse.json();
 
-      console.log('✅ Dashboard data loaded:', { statsData, projectsData });
+      const [statsData, projectsData] = await Promise.all([
+        statsResponse.json(),
+        projectsResponse.json()
+      ]);
+
+      console.log('✅ Dashboard data loaded:', projectsData.projects?.length, 'projects');
 
       setStats(statsData.stats || stats);
       setRecentProjects(projectsData.projects || []);
+
+      // Update cache timestamp
+      lastFetchTime.current = now;
 
     } catch (error: any) {
       console.error('❌ Dashboard fetch error:', error);
@@ -74,13 +98,18 @@ export function useDashboardData() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Initial fetch only - no auto-refresh
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   return {
     stats,
     recentProjects,
     isLoading,
     error,
-    refetch: fetchDashboardData
+    refetch: () => fetchDashboardData(true) // Expose manual refresh with force
   };
 }

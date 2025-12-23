@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface WorkerInfo {
   id: string;
@@ -54,22 +54,39 @@ export function useWorkerData() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboardData = async () => {
+  // Cache timestamp to prevent unnecessary refetches
+  const lastFetchTime = useRef<number>(0);
+  const CACHE_DURATION = 5000; // 5 seconds cache (reduced for real-time updates)
+
+  const fetchDashboardData = useCallback(async (forceRefresh = false) => {
     try {
+      // Check if we have fresh data in cache
+      const now = Date.now();
+      if (!forceRefresh && now - lastFetchTime.current < CACHE_DURATION) {
+        console.log('📦 Using cached worker dashboard data');
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
-      
+
       // GET WORKER ID DARI SESSION - BUKAN HARDCODE
       const workerId = getCurrentWorkerId();
-      
+
       if (!workerId) {
         throw new Error('Worker ID tidak ditemukan. Silakan login ulang.');
       }
-      
+
       console.log('🔍 Fetching dashboard for worker ID:', workerId);
-      
-      const response = await fetch(`/api/worker-dashboard?worker_id=${workerId}`);
-      
+
+      // Fetch with NO CACHE for real-time data
+      const response = await fetch(`/api/worker-dashboard?worker_id=${workerId}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
+      });
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -84,19 +101,22 @@ export function useWorkerData() {
       setWorkerInfo(data.worker || null);
       setProjects(data.projects || []);
       setNotifications(data.notifications || []);
-      
+
+      // Update cache timestamp
+      lastFetchTime.current = now;
+
       console.log('✅ Dashboard data loaded for:', data.worker?.full_name);
-      
+
     } catch (error: any) {
       console.error('Dashboard fetch error:', error);
       setError(error.message);
-      
+
       // Jika error karena no worker ID, redirect ke login
       if (error.message.includes('Worker ID tidak ditemukan')) {
         window.location.href = '/login';
         return;
       }
-      
+
       // Set fallback data on other errors
       setWorkerInfo(null);
       setProjects([]);
@@ -104,11 +124,12 @@ export function useWorkerData() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    // Initial fetch only - no auto-refresh
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
 
   // ...existing code...
 const handleProjectAction = async (projectId: string, action: string) => {
@@ -136,8 +157,8 @@ const handleProjectAction = async (projectId: string, action: string) => {
       throw new Error('Failed to update project');
     }
 
-    // Refresh data after successful action
-    await fetchDashboardData();
+    // Refresh data after successful action (force refresh to bypass cache)
+    await fetchDashboardData(true);
     
   } catch (error: any) {
     console.error('Project action error:', error);

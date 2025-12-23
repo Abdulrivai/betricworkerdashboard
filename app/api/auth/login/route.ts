@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { supabaseServer } from '../../../lib/supabaseserver';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret';
+import { supabaseServer } from '@/app/lib/supabaseserver';
+import { comparePassword } from '@/lib/password';
+import { signToken } from '@/lib/jwt';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,10 +13,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    console.log('Login attempt for:', email);
-    console.log('Password from form:', password);
-    console.log('Password length:', password.length);
 
     // SKIP Supabase Auth - langsung cek table users
     const { data: userData, error: userError } = await supabaseServer
@@ -44,26 +39,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // DEBUG PASSWORD COMPARISON
-    console.log('=== PASSWORD DEBUG ===');
-    console.log('Database password:', userData.password);
-    console.log('Database password length:', userData.password?.length);
-    console.log('Form password:', password);
-    console.log('Form password length:', password.length);
-    console.log('Passwords match:', userData.password === password);
-    console.log('Password types:', typeof userData.password, typeof password);
+    // Check password with bcrypt
+    const isPasswordValid = await comparePassword(password, userData.password);
 
-    // Check password manual
-    // Check password manual dengan trim
-if (userData.password?.trim() !== password.trim()) {
-  console.log('❌ Password mismatch!');
-  return NextResponse.json(
-    { error: 'Password salah' },
-    { status: 401 }
-  );
-}
-
-    console.log('✅ Password match!');
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { error: 'Password salah' },
+        { status: 401 }
+      );
+    }
 
     // Validasi role
     if (!['admin', 'worker'].includes(userData.role)) {
@@ -74,16 +58,12 @@ if (userData.password?.trim() !== password.trim()) {
     }
 
     // Buat JWT token
-    const token = jwt.sign(
-      {
-        id: userData.id,
-        email: userData.email,
-        role: userData.role,
-        full_name: userData.full_name,
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = signToken({
+      id: userData.id,
+      email: userData.email,
+      role: userData.role,
+      full_name: userData.full_name,
+    });
 
     const response = NextResponse.json({
       success: true,

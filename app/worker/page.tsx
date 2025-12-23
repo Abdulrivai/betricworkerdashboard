@@ -12,7 +12,8 @@ export default function WorkerDashboard() {
     workerInfo,
     isLoading,
     handleProjectAction,
-    handleLogout
+    handleLogout,
+    refreshData
   } = useWorkerData();
 
   const [selectedProject, setSelectedProject] = useState<any>(null);
@@ -74,15 +75,28 @@ export default function WorkerDashboard() {
 
         {/* Welcome Section */}
         <div className="mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900 mb-1">
-            Selamat Datang, {workerInfo?.full_name || 'Worker'}! 👋
-          </h2>
-          <p className="text-blue-700/70 text-sm sm:text-base">
-            Kelola SPK dan pantau progress project Anda
-            {workerInfo?.email && (
-              <span className="font-medium text-blue-800 block sm:inline mt-1 sm:mt-0"> ({workerInfo.email})</span>
-            )}
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900 mb-1">
+                Selamat Datang, {workerInfo?.full_name || 'Worker'}! 👋
+              </h2>
+              <p className="text-blue-700/70 text-sm sm:text-base">
+                Kelola SPK dan pantau progress project Anda
+                {workerInfo?.email && (
+                  <span className="font-medium text-blue-800 block sm:inline mt-1 sm:mt-0"> ({workerInfo.email})</span>
+                )}
+              </p>
+            </div>
+            <button
+              onClick={() => refreshData(true)}
+              className="bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center space-x-2 whitespace-nowrap shrink-0"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="text-sm sm:text-base">Refresh</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats Overview */}

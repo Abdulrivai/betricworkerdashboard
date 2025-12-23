@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import * as XLSX from 'xlsx';
@@ -34,64 +34,45 @@ interface WorkerPayrollSummary {
   projects: PayrollProject[];
 }
 
+// Custom debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export default function ReportsPage() {
   const [payrollData, setPayrollData] = useState<WorkerPayrollSummary[]>([]);
-  const [filteredData, setFilteredData] = useState<WorkerPayrollSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-
   const [dateRange, setDateRange] = useState('10'); // days
   const [paymentStatus, setPaymentStatus] = useState<string>('all');
   const [paymentCycle, setPaymentCycle] = useState<string>('14th');
 
-  useEffect(() => {
-    fetchPayrollData();
-  }, [dateRange, paymentCycle]);
+  // Debounce search query to reduce filtering operations
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  useEffect(() => {
-    filterData();
-  }, [payrollData, paymentStatus, searchQuery]);
-
-  const fetchPayrollData = async () => {
-    try {
-      setIsLoading(true);
-      // Add timestamp to prevent caching
-      const timestamp = new Date().getTime();
-      const response = await fetch(
-        `/api/admin/payroll?days=${dateRange}&cycle=${paymentCycle}&_t=${timestamp}`,
-        {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
-          }
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched payroll data:', data);
-        setPayrollData(data.workers || []);
-      } else {
-        console.error('Failed to fetch payroll data:', response.status);
-      }
-    } catch (error) {
-      console.error('Error fetching payroll data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const filterData = () => {
+  // Memoize filtered data to avoid unnecessary recalculations
+  const filteredData = useMemo(() => {
     let filtered = payrollData;
 
     // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       filtered = filtered.filter(worker =>
         worker.worker_name.toLowerCase().includes(query) ||
         worker.worker_email.toLowerCase().includes(query) ||
@@ -107,8 +88,40 @@ export default function ReportsPage() {
       })).filter(worker => worker.projects.length > 0);
     }
 
-    setFilteredData(filtered);
-  };
+    return filtered;
+  }, [payrollData, paymentStatus, debouncedSearchQuery]);
+
+  // Memoize fetch function to prevent unnecessary re-creation
+  const fetchPayrollData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `/api/admin/payroll?days=${dateRange}&cycle=${paymentCycle}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Fetched payroll data:', data.workers?.length, 'workers');
+        setPayrollData(data.workers || []);
+      } else {
+        console.error('Failed to fetch payroll data:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching payroll data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dateRange, paymentCycle]);
+
+  useEffect(() => {
+    fetchPayrollData();
+  }, [fetchPayrollData]);
 
   const handleTogglePaymentStatus = async (projectId: string, workerId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';

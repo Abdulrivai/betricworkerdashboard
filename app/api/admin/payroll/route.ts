@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Database connection OK');
 
-    // Fetch completed projects with worker info
+    // Fetch completed projects with worker info (both on-time and late)
     const { data: projects, error: projectsError } = await supabaseAdmin
       .from('projects')
       .select(`
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
           role
         )
       `)
-      .eq('status', 'DONE_ON_TIME')
+      .in('status', ['DONE_ON_TIME', 'DONE_LATE'])
       .gte('updated_at', startDate.toISOString())
       .lte('updated_at', endDate.toISOString())
       .not('worker_id', 'is', null)
