@@ -1310,9 +1310,8 @@ export default function ReportsPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-4">
-                <Link href="/admin" className="text-blue-700 hover:text-blue-900 font-medium transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg flex items-center space-x-2">
-                  <span>←</span>
-                  <span>Dashboard</span>
+                <Link href="/admin" className="text-blue-700 hover:text-blue-900 font-medium transition-colors">
+                  ← Dashboard
                 </Link>
                 <div className="h-6 w-px bg-blue-200"></div>
                 <img src="/betriclogoblue.png" alt="Betric" className="h-8 w-8 object-contain" />
@@ -1596,9 +1595,8 @@ export default function ReportsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Link href="/admin" className="text-blue-700 hover:text-blue-900 font-medium transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg flex items-center space-x-2">
-                <span>←</span>
-                <span>Dashboard</span>
+              <Link href="/admin" className="text-blue-700 hover:text-blue-900 font-medium transition-colors">
+                ← Dashboard
               </Link>
               <div className="h-6 w-px bg-blue-200"></div>
               <img src="/betriclogoblue.png" alt="Betric" className="h-8 w-8 object-contain" />

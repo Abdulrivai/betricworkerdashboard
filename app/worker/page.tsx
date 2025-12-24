@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import Header from './components/Header';
 import ProjectCard from './components/ProjectCard';
 import ProjectModal from './components/ProjectModal';
@@ -48,30 +49,7 @@ export default function WorkerDashboard() {
       />
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6">
-        {/* Page Header */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 px-4 py-3 sm:px-6 sm:py-4 mb-4 sm:mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-              <button
-                onClick={() => window.location.href = '/'}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm sm:text-base transition-colors"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                <span className="hidden sm:inline">Kembali ke Dashboard</span>
-                <span className="sm:hidden">Kembali</span>
-              </button>
-              <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
-              <h1 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 truncate">
-                Dashboard Worker
-              </h1>
-            </div>
-            <div className="flex-shrink-0">
-              <img src="/betriclogoblue.png" alt="BETRIC" className="h-6 sm:h-8 w-auto" />
-            </div>
-          </div>
-        </div>
+       
 
         {/* Welcome Section */}
         <div className="mb-4 sm:mb-6">

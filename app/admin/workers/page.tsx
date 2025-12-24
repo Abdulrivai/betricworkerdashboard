@@ -372,7 +372,7 @@ export default function WorkersPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-blue-900/10 sticky top-0 z-50">
+      <header className="bg-white/80 backdrop-blur-md border-b border-blue-900/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">

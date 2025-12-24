@@ -106,12 +106,11 @@ function CreateProject() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Link 
-                href="/admin" 
-                className="flex items-center space-x-2 text-blue-700 hover:text-blue-900 font-medium transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg"
+              <Link
+                href="/admin"
+                className="text-blue-700 hover:text-blue-900 font-medium transition-colors"
               >
-                <span>←</span>
-                <span>Kembali ke Dashboard</span>
+                ← Dashboard
               </Link>
               <div className="h-6 w-px bg-blue-200"></div>
               <h1 className="text-xl font-bold text-blue-900">Buat SPK Baru</h1>
