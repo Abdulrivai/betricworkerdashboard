@@ -6,11 +6,16 @@ interface Project {
   id: string;
   title: string;
   status: string;
-  worker: { 
+  worker: {
     id: string;
-    full_name: string; 
-    email: string; 
+    full_name: string;
+    email: string;
   } | null;
+  workers?: Array<{
+    id: string;
+    full_name: string;
+    email: string;
+  }>;
   deadline: string;
   project_value: number;
   description: string;
@@ -293,13 +298,37 @@ export default function ProjectTable({
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-blue-900">
-                        {project.worker?.full_name || 'Belum ditugaskan'}
-                      </div>
-                      {project.worker?.email && (
-                        <div className="text-blue-700/70 text-sm mt-1">
-                          {project.worker.email}
+                      {project.workers && project.workers.length > 0 ? (
+                        <div className="space-y-1">
+                          {project.workers.length === 1 ? (
+                            <>
+                              <div className="text-blue-900 font-medium">
+                                {project.workers[0].full_name}
+                              </div>
+                              <div className="text-blue-700/70 text-xs">
+                                {project.workers[0].email}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-blue-900 font-medium">
+                                {project.workers.length} Workers
+                              </div>
+                              <div className="text-blue-700/70 text-xs space-y-0.5">
+                                {project.workers.slice(0, 2).map((w, idx) => (
+                                  <div key={w.id}>• {w.full_name}</div>
+                                ))}
+                                {project.workers.length > 2 && (
+                                  <div className="text-blue-600 font-medium">
+                                    +{project.workers.length - 2} lainnya
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
+                      ) : (
+                        <div className="text-blue-700/50">Belum ditugaskan</div>
                       )}
                     </td>
                     <td className="px-6 py-4">

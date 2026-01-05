@@ -26,9 +26,9 @@ const isValidUUID = (uuid: string): boolean => {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, project_value, worker_id, deadline, requirements } = body;
+    const { title, description, project_value, worker_ids, deadline, requirements } = body;
 
-    console.log('🔧 Creating project:', { title, worker_id, project_value });
+    console.log('🔧 Creating project:', { title, worker_ids, project_value });
 
     // Basic validation
     if (!title?.trim()) {
@@ -44,8 +44,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project value must be a positive number' }, { status: 400 });
     }
 
-    if (!worker_id || !isValidUUID(worker_id)) {
-      return NextResponse.json({ error: 'Invalid worker ID' }, { status: 400 });
+    // Validate worker_ids array
+    if (!Array.isArray(worker_ids) || worker_ids.length === 0) {
+      return NextResponse.json({ error: 'At least one worker must be selected' }, { status: 400 });
+    }
+
+    // Validate all worker IDs are valid UUIDs
+    for (const workerId of worker_ids) {
+      if (!isValidUUID(workerId)) {
+        return NextResponse.json({ error: 'Invalid worker ID format' }, { status: 400 });
+      }
     }
 
     const deadlineDate = new Date(deadline);
@@ -53,46 +61,77 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Deadline must be a valid future date' }, { status: 400 });
     }
 
-    // Check if worker exists
-    const { data: worker, error: workerError } = await supabaseAdmin
+    // Check if all workers exist and are valid
+    const { data: workers, error: workersError } = await supabaseAdmin
       .from('users')
       .select('id, role')
-      .eq('id', worker_id)
-      .single();
+      .in('id', worker_ids);
 
-    if (workerError || !worker || worker.role !== 'worker') {
-      return NextResponse.json({ error: 'Worker not found or invalid' }, { status: 404 });
+    if (workersError) {
+      return NextResponse.json({ error: 'Failed to verify workers' }, { status: 500 });
     }
 
-    // Insert project
-    const { data: project, error: projectError } = await supabaseAdmin
+    if (!workers || workers.length !== worker_ids.length) {
+      return NextResponse.json({ error: 'One or more workers not found' }, { status: 404 });
+    }
+
+    const invalidWorkers = workers.filter(w => w.role !== 'worker');
+    if (invalidWorkers.length > 0) {
+      return NextResponse.json({ error: 'One or more selected users are not workers' }, { status: 400 });
+    }
+
+    // Create separate projects for each worker
+    const projectsToInsert = worker_ids.map(workerId => ({
+      title: title.trim(),
+      description: description.trim(),
+      project_value: numericValue,
+      worker_id: workerId,
+      deadline: deadlineDate.toISOString(),
+      status: 'DRAFT_SPK',
+      requirements: Array.isArray(requirements) ? requirements : []
+    }));
+
+    const { data: projects, error: projectError } = await supabaseAdmin
       .from('projects')
-      .insert({
-        title: title.trim(),
-        description: description.trim(),
-        project_value: numericValue,
-        worker_id,
-        deadline: deadlineDate.toISOString(),
-        status: 'DRAFT_SPK',
-        requirements: Array.isArray(requirements) ? requirements : []
-      })
-      .select()
-      .single();
+      .insert(projectsToInsert)
+      .select();
 
     if (projectError) {
       console.error('❌ Project creation error:', projectError);
       return NextResponse.json({
-        error: 'Failed to create project',
+        error: 'Failed to create projects',
         details: process.env.NODE_ENV === 'development' ? projectError.message : 'Database error'
       }, { status: 500 });
     }
 
-    console.log('✅ Project created:', project);
+    // Insert workers into project_workers junction table (each project gets only its assigned worker)
+    const projectWorkers = projects.map(project => ({
+      project_id: project.id,
+      worker_id: project.worker_id
+    }));
+
+    const { error: junctionError } = await supabaseAdmin
+      .from('project_workers')
+      .insert(projectWorkers);
+
+    if (junctionError) {
+      console.error('❌ Project workers junction error:', junctionError);
+      // Rollback: delete all created projects if junction insert fails
+      const projectIds = projects.map(p => p.id);
+      await supabaseAdmin.from('projects').delete().in('id', projectIds);
+      return NextResponse.json({
+        error: 'Failed to assign workers to projects',
+        details: process.env.NODE_ENV === 'development' ? junctionError.message : 'Database error'
+      }, { status: 500 });
+    }
+
+    console.log('✅ Created', projects.length, 'separate projects for', worker_ids.length, 'workers');
 
     return NextResponse.json({
       success: true,
-      message: 'SPK berhasil dibuat',
-      project
+      message: `${projects.length} SPK terpisah berhasil dibuat untuk ${worker_ids.length} worker${worker_ids.length > 1 ? 's' : ''}`,
+      projects,
+      project_count: projects.length
     }, { status: 201 });
 
   } catch (error: any) {
@@ -107,8 +146,8 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     console.log('🔍 Fetching all projects...');
-    
-    // Fetch all projects with worker info (dengan debugging)
+
+    // Fetch all projects with primary worker info
     const { data: projects, error } = await supabaseAdmin
       .from('projects')
       .select(`
@@ -116,12 +155,6 @@ export async function GET() {
         worker:users!projects_worker_id_fkey(id, email, full_name, role)
       `)
       .order('created_at', { ascending: false });
-
-    console.log('📊 Projects query result:', { 
-      projects: projects?.length || 0, 
-      error,
-      sample: projects?.[0] || 'No projects found'
-    });
 
     if (error) {
       console.error('❌ Fetch projects error:', error);
@@ -131,12 +164,43 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    console.log('✅ Successfully fetched', projects?.length || 0, 'projects');
+    // Fetch all workers for each project from junction table
+    const projectIds = projects?.map(p => p.id) || [];
+
+    let projectWorkersMap: Record<string, any[]> = {};
+
+    if (projectIds.length > 0) {
+      const { data: projectWorkers, error: pwError } = await supabaseAdmin
+        .from('project_workers')
+        .select(`
+          project_id,
+          worker:users!project_workers_worker_id_fkey(id, email, full_name, role)
+        `)
+        .in('project_id', projectIds);
+
+      if (!pwError && projectWorkers) {
+        // Group workers by project_id
+        projectWorkers.forEach(pw => {
+          if (!projectWorkersMap[pw.project_id]) {
+            projectWorkersMap[pw.project_id] = [];
+          }
+          projectWorkersMap[pw.project_id].push(pw.worker);
+        });
+      }
+    }
+
+    // Attach workers array to each project
+    const projectsWithWorkers = projects?.map(project => ({
+      ...project,
+      workers: projectWorkersMap[project.id] || []
+    })) || [];
+
+    console.log('✅ Successfully fetched', projectsWithWorkers.length, 'projects with workers');
 
     return NextResponse.json({
       success: true,
-      projects: projects || [],
-      total: projects?.length || 0
+      projects: projectsWithWorkers,
+      total: projectsWithWorkers.length
     });
 
   } catch (error: any) {

@@ -7,6 +7,11 @@ interface RecentProject {
   id: string;
   title: string;
   worker: { full_name: string } | null;
+  workers?: Array<{
+    id: string;
+    full_name: string;
+    email: string;
+  }>;
   status: string;
   current_deadline: string;
   project_value: number;
@@ -55,7 +60,16 @@ export default function RecentProjects({ projects }: RecentProjectsProps) {
               <div className="text-sm text-blue-700/70 space-y-1">
                 <div className="flex items-center justify-between">
                   <span>🧑‍💼 Worker:</span>
-                  <span className="text-right">{project.worker?.full_name || 'Belum ditugaskan'}</span>
+                  {project.workers && project.workers.length > 0 ? (
+                    <span className="text-right">
+                      {project.workers.length === 1
+                        ? project.workers[0].full_name
+                        : `${project.workers.length} workers`
+                      }
+                    </span>
+                  ) : (
+                    <span className="text-right">{project.worker?.full_name || 'Belum ditugaskan'}</span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <span>📅 Deadline:</span>

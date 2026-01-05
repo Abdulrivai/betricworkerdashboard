@@ -10,11 +10,16 @@ interface Project {
   id: string;
   title: string;
   status: string;
-  worker: { 
+  worker: {
     id: string;
-    full_name: string; 
-    email: string; 
+    full_name: string;
+    email: string;
   } | null;
+  workers?: Array<{
+    id: string;
+    full_name: string;
+    email: string;
+  }>;
   deadline: string;
   project_value: number;
   description: string;

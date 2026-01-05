@@ -19,7 +19,7 @@ function CreateProject() {
     title: '',
     description: '',
     project_value: '',
-    worker_id: '',
+    worker_ids: [] as string[],
     deadline: '',
     requirements: ['']
   });
@@ -169,58 +169,144 @@ function CreateProject() {
               />
             </div>
 
-            {/* Worker & Nilai Proyek */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Worker Selection */}
-              <div className="space-y-3">
-                <label className="block text-blue-900 text-sm font-semibold mb-2 flex items-center space-x-2">
-                  <span>👨‍💼</span>
-                  <span>Pilih Worker *</span>
-                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                    {workers.length} workers tersedia
-                  </span>
-                </label>
-                
-                <select
-                  required
-                  value={formData.worker_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, worker_id: e.target.value }))}
-                  className="w-full px-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl text-blue-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
-                >
-                  <option value="" className="text-blue-400">Pilih Worker untuk Project ini</option>
-                  {workers.map(worker => (
-                    <option key={worker.id} value={worker.id} className="text-blue-900">
-                      {worker.full_name} - {worker.email}
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Preview Worker yang dipilih */}
-                {formData.worker_id && (
-                  <div className="mt-3 p-4 bg-blue-100/50 rounded-xl border border-blue-200">
-                    <div className="text-sm text-blue-800">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-green-600 font-bold">✅</span>
-                        <span className="font-semibold">Worker Terpilih:</span>
-                      </div>
-                      <div className="pl-6 space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">👤 Nama:</span>
-                          <span>{workers.find(w => w.id === formData.worker_id)?.full_name}</span>
+            {/* Worker Selection - Full Width */}
+            <div className="space-y-4">
+              <label className="flex items-center space-x-2 text-blue-900 text-sm font-semibold">
+                <span>👨‍💼</span>
+                <span>Pilih Worker *</span>
+                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                  {formData.worker_ids.length} / {workers.length} dipilih
+                </span>
+              </label>
+
+              {/* Worker Grid dengan Checkbox */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-4 bg-blue-50/30 rounded-xl border border-blue-200">
+                {workers.map(worker => {
+                  const isSelected = formData.worker_ids.includes(worker.id);
+                  return (
+                    <div
+                      key={worker.id}
+                      onClick={() => {
+                        if (isSelected) {
+                          setFormData(prev => ({
+                            ...prev,
+                            worker_ids: prev.worker_ids.filter(id => id !== worker.id)
+                          }));
+                        } else {
+                          setFormData(prev => ({
+                            ...prev,
+                            worker_ids: [...prev.worker_ids, worker.id]
+                          }));
+                        }
+                      }}
+                      className={`
+                        relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200
+                        ${isSelected
+                          ? 'border-blue-600 bg-blue-100/70 shadow-md'
+                          : 'border-blue-200 bg-white hover:border-blue-400 hover:shadow-sm'
+                        }
+                      `}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="shrink-0 mt-0.5">
+                          <div className={`
+                            w-5 h-5 rounded border-2 flex items-center justify-center transition-all
+                            ${isSelected
+                              ? 'bg-blue-600 border-blue-600'
+                              : 'bg-white border-blue-300'
+                            }
+                          `}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">📧 Email:</span>
-                          <span>{workers.find(w => w.id === formData.worker_id)?.email}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">🆔 ID:</span>
-                          <span className="font-mono text-xs">{formData.worker_id.slice(0,8)}...</span>
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-semibold text-sm truncate ${isSelected ? 'text-blue-900' : 'text-blue-800'}`}>
+                            {worker.full_name}
+                          </div>
+                          <div className={`text-xs truncate mt-1 ${isSelected ? 'text-blue-700' : 'text-blue-600/70'}`}>
+                            {worker.email}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })}
               </div>
+
+              {/* Preview Workers Terpilih dengan Tag yang bisa dihapus */}
+              {formData.worker_ids.length > 0 && (
+                <div className="p-4 bg-linear-to-br from-green-50 to-blue-50 rounded-xl border-2 border-green-200">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <span className="text-green-600 font-bold text-lg">✅</span>
+                    <span className="font-bold text-green-900">
+                      {formData.worker_ids.length} Worker{formData.worker_ids.length > 1 ? 's' : ''} Terpilih
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {formData.worker_ids.map((workerId) => {
+                      const worker = workers.find(w => w.id === workerId);
+                      if (!worker) return null;
+                      return (
+                        <div
+                          key={workerId}
+                          className="group flex items-center space-x-2 bg-white/80 hover:bg-white border-2 border-green-300 rounded-lg px-3 py-2 transition-all shadow-sm hover:shadow-md"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span className="text-green-600">👤</span>
+                            <div>
+                              <div className="text-sm font-semibold text-blue-900">
+                                {worker.full_name}
+                              </div>
+                              <div className="text-xs text-blue-600/70">
+                                {worker.email}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFormData(prev => ({
+                                ...prev,
+                                worker_ids: prev.worker_ids.filter(id => id !== workerId)
+                              }));
+                            }}
+                            className="ml-2 shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
+                            title="Hapus worker ini"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tombol Clear All */}
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, worker_ids: [] }))}
+                    className="mt-3 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Hapus Semua</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Nilai Proyek & Deadline */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Spacer untuk layout consistency */}
+              <div></div>
 
               {/* Nilai Proyek */}
               <div className="space-y-3">
