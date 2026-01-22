@@ -10,7 +10,7 @@ interface HyperspeedProps {
 
 const Hyperspeed: FC<HyperspeedProps> = ({ className = '' }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const animationFrameRef = useRef<number>();
+    const animationFrameRef = useRef<number | undefined>(undefined);
 
     useEffect(() => {
         if (!containerRef.current) return;
