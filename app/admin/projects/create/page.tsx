@@ -19,8 +19,7 @@ function CreateProject() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    project_value: '',
-    worker_ids: [] as string[],
+    workers: [] as Array<{ worker_id: string; project_value: string }>,
     deadline: '',
     requirements: ['']
   });
@@ -32,7 +31,7 @@ function CreateProject() {
   const fetchWorkers = async () => {
     try {
       const response = await fetch('/api/workers');
-      
+
       if (response.ok) {
         const data = await response.json();
         setWorkers(data.workers || []);
@@ -72,8 +71,13 @@ function CreateProject() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          project_value: parseFloat(formData.project_value),
+          title: formData.title,
+          description: formData.description,
+          workers: formData.workers.map(w => ({
+            worker_id: w.worker_id,
+            project_value: parseFloat(w.project_value)
+          })),
+          deadline: formData.deadline,
           requirements: formData.requirements.filter(req => req.trim() !== '')
         }),
       });
@@ -146,7 +150,7 @@ function CreateProject() {
         {/* Form Container */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-blue-900/10 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-8">
-            
+
             {/* Judul Proyek */}
             <div className="space-y-3">
               <label className="block text-blue-900 text-sm font-semibold mb-2 flex items-center space-x-2">
@@ -185,7 +189,7 @@ function CreateProject() {
                 <span>👨‍💼</span>
                 <span>Pilih Worker *</span>
                 <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                  {formData.worker_ids.length} / {workers.length} dipilih
+                  {formData.workers.length} / {workers.length} dipilih
                 </span>
               </label>
 
@@ -220,59 +224,59 @@ function CreateProject() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto p-4 bg-blue-50/30 rounded-xl border border-blue-200">
                 {filteredWorkers.length > 0 ? (
                   filteredWorkers.map(worker => {
-                  const isSelected = formData.worker_ids.includes(worker.id);
-                  return (
-                    <div
-                      key={worker.id}
-                      onClick={() => {
-                        if (isSelected) {
-                          setFormData(prev => ({
-                            ...prev,
-                            worker_ids: prev.worker_ids.filter(id => id !== worker.id)
-                          }));
-                        } else {
-                          setFormData(prev => ({
-                            ...prev,
-                            worker_ids: [...prev.worker_ids, worker.id]
-                          }));
-                        }
-                      }}
-                      className={`
+                    const isSelected = formData.workers.some(w => w.worker_id === worker.id);
+                    return (
+                      <div
+                        key={worker.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setFormData(prev => ({
+                              ...prev,
+                              workers: prev.workers.filter(w => w.worker_id !== worker.id)
+                            }));
+                          } else {
+                            setFormData(prev => ({
+                              ...prev,
+                              workers: [...prev.workers, { worker_id: worker.id, project_value: '' }]
+                            }));
+                          }
+                        }}
+                        className={`
                         relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200
                         ${isSelected
-                          ? 'border-blue-600 bg-blue-100/70 shadow-md'
-                          : 'border-blue-200 bg-white hover:border-blue-400 hover:shadow-sm'
-                        }
+                            ? 'border-blue-600 bg-blue-100/70 shadow-md'
+                            : 'border-blue-200 bg-white hover:border-blue-400 hover:shadow-sm'
+                          }
                       `}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="shrink-0 mt-0.5">
-                          <div className={`
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="shrink-0 mt-0.5">
+                            <div className={`
                             w-5 h-5 rounded border-2 flex items-center justify-center transition-all
                             ${isSelected
-                              ? 'bg-blue-600 border-blue-600'
-                              : 'bg-white border-blue-300'
-                            }
+                                ? 'bg-blue-600 border-blue-600'
+                                : 'bg-white border-blue-300'
+                              }
                           `}>
-                            {isSelected && (
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
+                              {isSelected && (
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className={`font-semibold text-sm truncate ${isSelected ? 'text-blue-900' : 'text-blue-800'}`}>
-                            {worker.full_name}
-                          </div>
-                          <div className={`text-xs truncate mt-1 ${isSelected ? 'text-blue-700' : 'text-blue-600/70'}`}>
-                            {worker.email}
+                          <div className="flex-1 min-w-0">
+                            <div className={`font-semibold text-sm truncate ${isSelected ? 'text-blue-900' : 'text-blue-800'}`}>
+                              {worker.full_name}
+                            </div>
+                            <div className={`text-xs truncate mt-1 ${isSelected ? 'text-blue-700' : 'text-blue-600/70'}`}>
+                              {worker.email}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
                 ) : (
                   <div className="col-span-2 py-12 text-center">
                     <svg className="w-16 h-16 mx-auto text-blue-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -284,8 +288,8 @@ function CreateProject() {
                 )}
               </div>
 
-              {/* Preview Workers Terpilih dengan Tag yang bisa dihapus */}
-              {formData.worker_ids.length > 0 && (
+              {/* Preview Workers Terpilih dengan Input Nilai */}
+              {formData.workers.length > 0 && (
                 <div className="relative overflow-hidden p-6 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 rounded-2xl border-2 border-green-300/60 shadow-lg">
                   {/* Decorative Elements */}
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-400/10 to-blue-400/10 rounded-full blur-3xl"></div>
@@ -301,10 +305,10 @@ function CreateProject() {
                       </div>
                       <div>
                         <h3 className="font-bold text-green-900 text-lg">
-                          {formData.worker_ids.length} Worker{formData.worker_ids.length > 1 ? 's' : ''} Terpilih
+                          {formData.workers.length} Worker{formData.workers.length > 1 ? 's' : ''} Terpilih
                         </h3>
                         <p className="text-xs text-green-700/70">
-                          Setiap worker akan mendapat SPK terpisah
+                          Setiap worker akan mendapat SPK terpisah dengan nilai berbeda
                         </p>
                       </div>
                     </div>
@@ -312,7 +316,7 @@ function CreateProject() {
                     {/* Tombol Clear All - Moved to Header */}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, worker_ids: [] }))}
+                      onClick={() => setFormData(prev => ({ ...prev, workers: [] }))}
                       className="group flex items-center space-x-2 text-sm text-red-600 hover:text-red-700 font-semibold bg-white hover:bg-red-50 px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-lg border border-red-200 hover:border-red-300"
                     >
                       <svg className="w-4 h-4 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -323,48 +327,74 @@ function CreateProject() {
                   </div>
 
                   {/* Worker Cards Grid */}
-                  <div className="relative grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {formData.worker_ids.map((workerId, index) => {
-                      const worker = workers.find(w => w.id === workerId);
+                  <div className="relative grid grid-cols-1 gap-4">
+                    {formData.workers.map((workerData, index) => {
+                      const worker = workers.find(w => w.id === workerData.worker_id);
                       if (!worker) return null;
                       return (
                         <div
-                          key={workerId}
-                          className="group relative bg-white hover:bg-gradient-to-br hover:from-white hover:to-blue-50/30 border-2 border-green-300/50 hover:border-green-400 rounded-xl p-4 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5"
+                          key={workerData.worker_id}
+                          className="group relative bg-white border-2 border-green-300/50 hover:border-green-400 rounded-xl p-5 transition-all duration-300 shadow-md hover:shadow-xl"
                         >
                           {/* Badge Number */}
                           <div className="absolute -top-2 -left-2 w-7 h-7 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg shadow-lg flex items-center justify-center">
                             <span className="text-white text-xs font-bold">{index + 1}</span>
                           </div>
 
-                          <div className="flex items-start space-x-3">
+                          <div className="flex items-start space-x-4">
                             {/* Avatar */}
                             <div className="shrink-0">
-                              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
                                 <span className="text-white font-bold text-lg">
                                   {worker.full_name.charAt(0).toUpperCase()}
                                 </span>
                               </div>
                             </div>
 
-                            {/* Worker Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="font-bold text-blue-900 text-sm mb-1 truncate group-hover:text-blue-700 transition-colors">
-                                {worker.full_name}
-                              </div>
-                              <div className="flex items-center space-x-1 text-xs text-blue-600/70 mb-2">
-                                <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                <span className="truncate">{worker.email}</span>
+                            {/* Worker Info & Value Input */}
+                            <div className="flex-1 min-w-0 space-y-3">
+                              <div>
+                                <div className="font-bold text-blue-900 text-sm mb-1 truncate">
+                                  {worker.full_name}
+                                </div>
+                                <div className="flex items-center space-x-1 text-xs text-blue-600/70">
+                                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                  </svg>
+                                  <span className="truncate">{worker.email}</span>
+                                </div>
                               </div>
 
-                              {/* Status Badge */}
-                              <div className="inline-flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-semibold">
-                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span>Akan menerima SPK</span>
+                              {/* Nilai Project Input */}
+                              <div className="space-y-2">
+                                <label className="flex items-center space-x-2 text-xs font-semibold text-blue-900">
+                                  <span>💰</span>
+                                  <span>Nilai Proyek (Rp) *</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  required
+                                  min="0"
+                                  value={workerData.project_value}
+                                  onChange={(e) => {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      workers: prev.workers.map(w =>
+                                        w.worker_id === workerData.worker_id
+                                          ? { ...w, project_value: e.target.value }
+                                          : w
+                                      )
+                                    }));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-full px-3 py-2 bg-blue-50/50 border border-blue-200 rounded-lg text-blue-900 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all placeholder-blue-400"
+                                  placeholder="Masukkan nilai project"
+                                />
+                                {workerData.project_value && (
+                                  <div className="text-xs text-blue-700 bg-blue-100/50 px-2 py-1.5 rounded-lg">
+                                    💵 <strong>Preview:</strong> {formatCurrency(workerData.project_value)}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -375,7 +405,7 @@ function CreateProject() {
                                 e.stopPropagation();
                                 setFormData(prev => ({
                                   ...prev,
-                                  worker_ids: prev.worker_ids.filter(id => id !== workerId)
+                                  workers: prev.workers.filter(w => w.worker_id !== workerData.worker_id)
                                 }));
                               }}
                               className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-red-500 hover:bg-red-600 text-white transition-all shadow-md hover:shadow-lg hover:scale-110 group/btn"
@@ -392,34 +422,6 @@ function CreateProject() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Nilai Proyek & Deadline */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Spacer untuk layout consistency */}
-              <div></div>
-
-              {/* Nilai Proyek */}
-              <div className="space-y-3">
-                <label className="block text-blue-900 text-sm font-semibold mb-2 flex items-center space-x-2">
-                  <span>💰</span>
-                  <span>Nilai Proyek (Rp) *</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  value={formData.project_value}
-                  onChange={(e) => setFormData(prev => ({ ...prev, project_value: e.target.value }))}
-                  className="w-full px-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl text-blue-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all placeholder-blue-400"
-                  placeholder="Masukkan nilai project dalam Rupiah"
-                />
-                {formData.project_value && (
-                  <div className="text-sm text-blue-700 bg-blue-100/50 px-3 py-2 rounded-lg">
-                    💵 <strong>Preview:</strong> {formatCurrency(formData.project_value)}
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Deadline */}
@@ -447,7 +449,7 @@ function CreateProject() {
                   Opsional
                 </span>
               </label>
-              
+
               <div className="space-y-3">
                 {formData.requirements.map((req, index) => (
                   <div key={index} className="flex gap-3 items-center">
@@ -473,7 +475,7 @@ function CreateProject() {
                     )}
                   </div>
                 ))}
-                
+
                 <button
                   type="button"
                   onClick={addRequirement}
@@ -504,7 +506,7 @@ function CreateProject() {
                   </>
                 )}
               </button>
-              
+
               <Link href="/admin/projects" className="sm:w-auto w-full">
                 <button
                   type="button"

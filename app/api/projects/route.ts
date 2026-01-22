@@ -26,9 +26,9 @@ const isValidUUID = (uuid: string): boolean => {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, project_value, worker_ids, deadline, requirements } = body;
+    const { title, description, workers, deadline, requirements } = body;
 
-    console.log('🔧 Creating project:', { title, worker_ids, project_value });
+    console.log('🔧 Creating project:', { title, workers });
 
     // Basic validation
     if (!title?.trim()) {
@@ -39,20 +39,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 });
     }
 
-    const numericValue = parseFloat(project_value);
-    if (isNaN(numericValue) || numericValue <= 0) {
-      return NextResponse.json({ error: 'Project value must be a positive number' }, { status: 400 });
-    }
-
-    // Validate worker_ids array
-    if (!Array.isArray(worker_ids) || worker_ids.length === 0) {
+    // Validate workers array
+    if (!Array.isArray(workers) || workers.length === 0) {
       return NextResponse.json({ error: 'At least one worker must be selected' }, { status: 400 });
     }
 
-    // Validate all worker IDs are valid UUIDs
-    for (const workerId of worker_ids) {
-      if (!isValidUUID(workerId)) {
+    // Validate each worker object
+    for (const worker of workers) {
+      if (!worker.worker_id || !isValidUUID(worker.worker_id)) {
         return NextResponse.json({ error: 'Invalid worker ID format' }, { status: 400 });
+      }
+
+      const numericValue = parseFloat(worker.project_value);
+      if (isNaN(numericValue) || numericValue <= 0) {
+        return NextResponse.json({
+          error: `Project value for worker ${worker.worker_id} must be a positive number`
+        }, { status: 400 });
       }
     }
 
@@ -61,8 +63,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Deadline must be a valid future date' }, { status: 400 });
     }
 
+    // Extract worker IDs for validation
+    const worker_ids = workers.map(w => w.worker_id);
+
     // Check if all workers exist and are valid
-    const { data: workers, error: workersError } = await supabaseAdmin
+    const { data: workersData, error: workersError } = await supabaseAdmin
       .from('users')
       .select('id, role')
       .in('id', worker_ids);
@@ -71,21 +76,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to verify workers' }, { status: 500 });
     }
 
-    if (!workers || workers.length !== worker_ids.length) {
+    if (!workersData || workersData.length !== worker_ids.length) {
       return NextResponse.json({ error: 'One or more workers not found' }, { status: 404 });
     }
 
-    const invalidWorkers = workers.filter(w => w.role !== 'worker');
+    const invalidWorkers = workersData.filter(w => w.role !== 'worker');
     if (invalidWorkers.length > 0) {
       return NextResponse.json({ error: 'One or more selected users are not workers' }, { status: 400 });
     }
 
-    // Create separate projects for each worker
-    const projectsToInsert = worker_ids.map(workerId => ({
+    // Create separate projects for each worker with their individual project values
+    const projectsToInsert = workers.map(worker => ({
       title: title.trim(),
       description: description.trim(),
-      project_value: numericValue,
-      worker_id: workerId,
+      project_value: parseFloat(worker.project_value),
+      worker_id: worker.worker_id,
       deadline: deadlineDate.toISOString(),
       status: 'DRAFT_SPK',
       requirements: Array.isArray(requirements) ? requirements : []
@@ -129,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `${projects.length} SPK terpisah berhasil dibuat untuk ${worker_ids.length} worker${worker_ids.length > 1 ? 's' : ''}`,
+      message: `${projects.length} SPK terpisah berhasil dibuat untuk ${worker_ids.length} worker${worker_ids.length > 1 ? 's' : ''} dengan nilai berbeda`,
       projects,
       project_count: projects.length
     }, { status: 201 });
