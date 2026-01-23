@@ -81,10 +81,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-gray-900 via-black to-gray-800">
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-gray-900 via-black to-gray-800 flex flex-col">
       <SimpleBackground />
 
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
+      {/* Main Content - Centered */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="mb-6 drop-shadow-2xl">
@@ -97,7 +98,7 @@ export default function LoginPage() {
                 priority
               />
             </div>
-            <p className="text-cyan-200/80 text-sl">Berau Technology and Research Innovation Center</p>
+
           </div>
 
           <div className="bg-gradient-to-br from-white/10 via-gray-900/50 to-black/40 backdrop-blur-xl rounded-3xl shadow-2xl p-8 sm:p-10 border border-blue-400/30 glow-form-blue hover:border-blue-400/50 transition-all duration-500">
@@ -186,17 +187,26 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Remember Me */}
+              {/* Remember Me - Custom Checkbox */}
               <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center group cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="remember"
-                    disabled={isLoading}
-                    className="w-4 h-4 text-cyan-500 border-cyan-400/50 rounded focus:ring-cyan-400 focus:ring-offset-gray-900 bg-gray-900/80 cursor-pointer transition-all"
-                  />
-                  <label htmlFor="remember" className="ml-2.5 text-sm text-gray-300 cursor-pointer group-hover:text-cyan-300 transition-colors">
-                    Ingat saya
+                <div className="flex items-center group">
+                  <label htmlFor="remember" className="flex items-center cursor-pointer">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        id="remember"
+                        disabled={isLoading}
+                        className="sr-only peer"
+                      />
+                      <div className="w-5 h-5 border-2 border-blue-400/40 rounded-md bg-black/60 peer-checked:bg-gradient-to-br peer-checked:from-blue-500 peer-checked:to-indigo-600 peer-checked:border-blue-400 transition-all duration-300 peer-hover:border-blue-400/60 peer-hover:shadow-lg peer-hover:shadow-blue-500/20 peer-checked:scale-110 peer-focus:ring-2 peer-focus:ring-blue-400/50 peer-focus:ring-offset-2 peer-focus:ring-offset-gray-900 flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                    <span className="ml-3 text-sm text-gray-300 group-hover:text-blue-300 transition-colors duration-200 select-none">
+                      Ingat saya
+                    </span>
                   </label>
                 </div>
               </div>
@@ -242,6 +252,34 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Copyright Footer - Sticky Bottom */}
+      <footer className="relative z-10 py-6 px-4 mt-auto">
+        <div className="max-w-md mx-auto">
+          <div className="text-center space-y-3">
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-blue-400/30 to-transparent"></div>
+
+            {/* Copyright Text */}
+            <div className="space-y-2">
+              <p className="text-xs text-gray-400 flex items-center justify-center space-x-2 group">
+                <svg className="w-3.5 h-3.5 text-blue-400/60 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span className="group-hover:text-gray-300 transition-colors">
+                  © {new Date().getFullYear()} <span className="font-semibold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">BETRIC</span>
+                </span>
+              </p>
+              <p className="text-xs text-gray-500 hover:text-gray-400 transition-colors">
+                Berau Technology and Research Innovation Center
+              </p>
+              <p className="text-xs text-gray-600 flex items-center justify-center space-x-1.5 hover:text-blue-400 transition-colors group">
+                <span className="text-xs">Powered by Innovation & Technology</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       <style jsx global>{`
         /* Autofill override - force black background and white text */
