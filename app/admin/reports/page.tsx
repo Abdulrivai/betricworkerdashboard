@@ -19,6 +19,17 @@ interface PayrollProject {
   payment_status: 'paid' | 'pending';
   payment_date?: string;
   payment_cycle: string; // '14th' for tanggal 14
+  // Project Details
+  deadline?: string;
+  description?: string;
+  requirements?: string[];
+  status?: string;
+  // Penalty Information
+  days_late?: number;
+  penalty_percentage?: number;
+  penalty_amount?: number;
+  original_value?: number;
+  final_value?: number;
 }
 
 interface WorkerPayrollSummary {
@@ -58,6 +69,7 @@ export default function ReportsPage() {
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProjectDetail, setSelectedProjectDetail] = useState<PayrollProject | null>(null);
 
   const [dateRange, setDateRange] = useState('10'); // days
   const [paymentStatus, setPaymentStatus] = useState<string>('all');
@@ -1892,9 +1904,30 @@ export default function ReportsPage() {
                                   <div className="text-sm text-blue-700/70">
                                     Selesai: {formatDate(project.completion_date)}
                                   </div>
+                                  {project.deadline && (
+                                    <div className="text-xs text-blue-600/60 mt-1">
+                                      Deadline: {formatDate(project.deadline)}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="flex flex-col items-end space-y-2">
-                                  <div className="text-lg font-bold text-blue-800">{formatCurrency(project.project_value)}</div>
+                                  {/* Show penalty warning if late */}
+                                  {project.days_late && project.days_late > 0 ? (
+                                    <>
+                                      <div className="text-right">
+                                        <div className="text-xs text-red-600 line-through">{formatCurrency(project.original_value || project.project_value)}</div>
+                                        <div className="text-lg font-bold text-red-700">{formatCurrency(project.final_value || project.project_value)}</div>
+                                        <div className="text-xs text-red-600 font-semibold">
+                                          Potongan: {project.days_late} hari × 3% = {project.penalty_percentage?.toFixed(0)}%
+                                        </div>
+                                        <div className="text-xs text-red-700 font-bold">
+                                          -{formatCurrency(project.penalty_amount || 0)}
+                                        </div>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="text-lg font-bold text-blue-800">{formatCurrency(project.final_value || project.project_value)}</div>
+                                  )}
                                   <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full border ${getStatusBadge(project.payment_status)}`}>
                                     {getStatusText(project.payment_status)}
                                   </span>
@@ -1909,6 +1942,17 @@ export default function ReportsPage() {
                                 </div>
 
                                 <div className="flex items-center space-x-2 no-print">
+                                  {/* Detail Button */}
+                                  <button
+                                    onClick={() => setSelectedProjectDetail(project)}
+                                    className="relative px-4 py-2.5 text-sm rounded-xl font-bold transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white border-2 border-blue-300/50"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>Detail SPK</span>
+                                  </button>
+
                                   {/* Toggle Status Button - Enhanced Design */}
                                   <button
                                     onClick={() => handleTogglePaymentStatus(project.id, worker.worker_id, project.payment_status)}
@@ -2001,6 +2045,203 @@ export default function ReportsPage() {
           </div>
         </div>
       </main>
+
+      {/* Modal Detail SPK */}
+      {selectedProjectDetail && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedProjectDetail(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-2xl">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-bold mb-2">📄 Detail SPK Project</h3>
+                  <p className="text-blue-100 text-sm">{selectedProjectDetail.title}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedProjectDetail(null)}
+                  className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Informasi Umum */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border-2 border-blue-200">
+                <h4 className="font-bold text-blue-900 mb-4 flex items-center text-lg">
+                  <span className="mr-2">📋</span> Informasi Umum
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold mb-1">Judul Project</p>
+                    <p className="text-blue-900 font-bold">{selectedProjectDetail.title}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold mb-1">Nilai Project</p>
+                    {selectedProjectDetail.days_late && selectedProjectDetail.days_late > 0 ? (
+                      <div>
+                        <p className="text-blue-900/50 line-through text-sm">{formatCurrency(selectedProjectDetail.original_value || selectedProjectDetail.project_value)}</p>
+                        <p className="text-red-700 font-bold text-xl">{formatCurrency(selectedProjectDetail.final_value || selectedProjectDetail.project_value)}</p>
+                        <p className="text-red-600 text-xs font-semibold">Potongan {selectedProjectDetail.penalty_percentage?.toFixed(0)}%</p>
+                      </div>
+                    ) : (
+                      <p className="text-blue-900 font-bold text-xl">{formatCurrency(selectedProjectDetail.project_value)}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold mb-1">Status</p>
+                    <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${
+                      selectedProjectDetail.payment_status === 'paid' 
+                        ? 'bg-green-100 text-green-800 border border-green-300' 
+                        : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                    }`}>
+                      {selectedProjectDetail.payment_status === 'paid' ? '✅ Sudah Dibayar' : '⏳ Belum Dibayar'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold mb-1">Status Project</p>
+                    <p className="text-blue-900">{selectedProjectDetail.status || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Penalty Information - Only show if there's a penalty */}
+              {selectedProjectDetail.days_late && selectedProjectDetail.days_late > 0 && (
+                <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-5 border-2 border-red-300">
+                  <h4 className="font-bold text-red-900 mb-4 flex items-center text-lg">
+                    <span className="mr-2">⚠️</span> Informasi Keterlambatan & Potongan
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="bg-white/70 rounded-lg p-4 border border-red-200">
+                      <p className="text-sm text-red-700 font-semibold mb-2">🚨 Project ini diselesaikan melewati deadline</p>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-red-600 font-medium">Terlambat</p>
+                          <p className="text-red-900 font-bold text-lg">{selectedProjectDetail.days_late} Hari</p>
+                        </div>
+                        <div>
+                          <p className="text-red-600 font-medium">Persentase Potongan</p>
+                          <p className="text-red-900 font-bold text-lg">{selectedProjectDetail.penalty_percentage?.toFixed(1)}%</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white/70 rounded-lg p-4 border border-red-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-red-700 font-semibold">Nilai Original:</span>
+                        <span className="text-red-900 font-bold">{formatCurrency(selectedProjectDetail.original_value || selectedProjectDetail.project_value)}</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-red-700 font-semibold">Potongan (3% × {selectedProjectDetail.days_late} hari):</span>
+                        <span className="text-red-600 font-bold">-{formatCurrency(selectedProjectDetail.penalty_amount || 0)}</span>
+                      </div>
+                      <div className="border-t-2 border-red-300 pt-2 mt-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-red-900 font-bold text-lg">Nilai Akhir:</span>
+                          <span className="text-red-900 font-bold text-2xl">{formatCurrency(selectedProjectDetail.final_value || selectedProjectDetail.project_value)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Informasi Tanggal */}
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border-2 border-purple-200">
+                <h4 className="font-bold text-purple-900 mb-4 flex items-center text-lg">
+                  <span className="mr-2">📅</span> Informasi Waktu
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-purple-600 font-semibold mb-1">Deadline</p>
+                    <p className="text-purple-900 font-semibold">{selectedProjectDetail.deadline ? formatDate(selectedProjectDetail.deadline) : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-purple-600 font-semibold mb-1">Tanggal Selesai</p>
+                    <p className="text-purple-900">{formatDate(selectedProjectDetail.completion_date)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Worker Info */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border-2 border-green-200">
+                <h4 className="font-bold text-green-900 mb-4 flex items-center text-lg">
+                  <span className="mr-2">👷</span> Informasi Worker
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-green-600 font-semibold mb-1">Nama Worker</p>
+                    <p className="text-green-900 font-bold">{selectedProjectDetail.worker_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-600 font-semibold mb-1">Email</p>
+                    <p className="text-green-900">{selectedProjectDetail.worker_email}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Info */}
+              {selectedProjectDetail.payment_date && (
+                <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-5 border-2 border-amber-200">
+                  <h4 className="font-bold text-amber-900 mb-4 flex items-center text-lg">
+                    <span className="mr-2">💰</span> Informasi Pembayaran
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-amber-600 font-semibold mb-1">Tanggal Bayar</p>
+                      <p className="text-amber-900 font-bold">{formatDate(selectedProjectDetail.payment_date)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-amber-600 font-semibold mb-1">Siklus Pembayaran</p>
+                      <p className="text-amber-900">{selectedProjectDetail.payment_cycle}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Deskripsi */}
+              {selectedProjectDetail.description && (
+                <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-5 border-2 border-gray-200">
+                  <h4 className="font-bold text-gray-900 mb-3 flex items-center text-lg">
+                    <span className="mr-2">📖</span> Deskripsi Project
+                  </h4>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedProjectDetail.description}</p>
+                </div>
+              )}
+
+              {/* Requirements */}
+              {selectedProjectDetail.requirements && selectedProjectDetail.requirements.length > 0 && (
+                <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-5 border-2 border-red-200">
+                  <h4 className="font-bold text-red-900 mb-3 flex items-center text-lg">
+                    <span className="mr-2">✅</span> Requirements
+                  </h4>
+                  <ul className="space-y-2">
+                    {selectedProjectDetail.requirements.map((req, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="text-red-600 font-bold mr-2">•</span>
+                        <span className="text-red-900">{req}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 rounded-b-2xl border-t border-gray-200">
+              <button
+                onClick={() => setSelectedProjectDetail(null)}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </>
   );

@@ -16,6 +16,39 @@ const supabaseAdmin = createClient(
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// Helper function to calculate penalty for late completion
+function calculateLatePenalty(completionDate: string, deadline: string, projectValue: number) {
+  const completion = new Date(completionDate);
+  const deadlineDate = new Date(deadline);
+  
+  // Calculate days late (only if completion is after deadline)
+  const diffTime = completion.getTime() - deadlineDate.getTime();
+  const daysLate = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  
+  if (daysLate > 0) {
+    // 3% penalty per day
+    const penaltyPercentage = daysLate * 0.03;
+    const penaltyAmount = projectValue * penaltyPercentage;
+    const finalValue = projectValue - penaltyAmount;
+    
+    return {
+      days_late: daysLate,
+      penalty_percentage: penaltyPercentage * 100, // Convert to percentage
+      penalty_amount: penaltyAmount,
+      original_value: projectValue,
+      final_value: Math.max(0, finalValue) // Tidak boleh negatif
+    };
+  }
+  
+  return {
+    days_late: 0,
+    penalty_percentage: 0,
+    penalty_amount: 0,
+    original_value: projectValue,
+    final_value: projectValue
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -56,6 +89,9 @@ export async function GET(request: NextRequest) {
         completion_date,
         created_at,
         worker_id,
+        deadline,
+        description,
+        requirements,
         users!projects_worker_id_fkey (
           id,
           full_name,
@@ -128,17 +164,40 @@ export async function GET(request: NextRequest) {
       }
       // No overdue status, everything unpaid is just 'pending'
 
+      // Calculate late penalty if applicable
+      const completionDate = project.completion_date || project.updated_at;
+      const penaltyInfo = project.deadline 
+        ? calculateLatePenalty(completionDate, project.deadline, project.project_value)
+        : {
+            days_late: 0,
+            penalty_percentage: 0,
+            penalty_amount: 0,
+            original_value: project.project_value,
+            final_value: project.project_value
+          };
+
       const projectData = {
         id: project.id,
         title: project.title,
         project_value: project.project_value,
-        completion_date: project.completion_date || project.updated_at,
+        completion_date: completionDate,
         worker_id: workerId,
         worker_name: worker.full_name,
         worker_email: worker.email,
         payment_status: paymentStatus,
         payment_date: paymentDate,
-        payment_cycle: cycle
+        payment_cycle: cycle,
+        // Project details
+        deadline: project.deadline,
+        description: project.description,
+        requirements: project.requirements,
+        status: project.status,
+        // Penalty information
+        days_late: penaltyInfo.days_late,
+        penalty_percentage: penaltyInfo.penalty_percentage,
+        penalty_amount: penaltyInfo.penalty_amount,
+        original_value: penaltyInfo.original_value,
+        final_value: penaltyInfo.final_value
       };
 
       if (!workerMap.has(workerId)) {
@@ -160,15 +219,15 @@ export async function GET(request: NextRequest) {
       if (workerData) {
         workerData.projects.push(projectData);
         workerData.total_projects++;
-        workerData.total_amount += project.project_value;
+        workerData.total_amount += penaltyInfo.final_value; // Use final value after penalty
 
         // Update status-specific counters
         if (paymentStatus === 'paid') {
           workerData.paid_projects++;
-          workerData.paid_amount += project.project_value;
+          workerData.paid_amount += penaltyInfo.final_value; // Use final value after penalty
         } else {
           workerData.pending_projects++;
-          workerData.pending_amount += project.project_value;
+          workerData.pending_amount += penaltyInfo.final_value; // Use final value after penalty
         }
       }
     });
